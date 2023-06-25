@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <title>AI Democracy</title>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+	<link rel="icon" href="favicon.png" type="image/x-icon" />
+	<link href='https://fonts.googleapis.com/css?family=Orbitron' rel='stylesheet' type='text/css'>
+	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="/style.css">
+  </head>
+
+  <body>
+  	<div class="logo-container">
+	  	<img src="favicon.png" alt="Favicon" class="logo-img">
+	    <h1 class="logo">AI Democracy</h1>
+	    <button id="info-button" class="left">&#9432;</button>
+	    <div id="game-description"> <p>AI Democracy is a strategic simulation game that explores the dynamics of governing a society through the lens of artificial intelligence. Players take on the role of a decision-maker in a democratic society where AI plays a central role in policy-making and governance. The game challenges players to navigate complex social, economic, and environmental issues by formulating policies, managing resources, and considering the impact of AI-driven decisions on various stakeholders.<br><br>
+
+		In AI Democracy, players are tasked with balancing the needs and demands of different interest groups, managing the economy, addressing social issues, and maintaining the well-being of the population. They must make informed decisions based on available data and predictive models provided by AI systems, considering both short-term and long-term consequences.<br><br>
+
+		The game allows players to explore the potential benefits and challenges of AI in governance, encouraging strategic thinking, critical decision-making, and understanding the ethical implications of relying on AI systems to shape society. By simulating the complexities of democratic governance with AI, players can gain insights into the potential future scenarios and implications of AI-driven decision-making in real-world contexts.<br><br>
+
+		AI Democracy offers a thought-provoking and engaging experience, inviting players to delve into the fascinating intersection of artificial intelligence and democracy while navigating the intricacies of policy-making and societal dynamics.</p></div>
+	    <div id="settings-dialog">
+	      <p id="loaded-game-name"></p>
+	      <button id="settings-button">&#9881;</button>
+	    </div>
+	</div>
+    <div id="game">
+      <div id="loading-overlay">
+        <div class="loader"></div>
+        <p id="loading-text">Loading...</p>
+      </div>
+      <div id="policy-actions">
+      </div>
+      <div id="svg-container"></div>
+      <div id="tooltip"></div>
+    </div>
+    <script type="module" src="/main.js"></script>
+  </body>
+
+</html>
