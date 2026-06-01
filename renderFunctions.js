@@ -33,6 +33,11 @@ let searchQuery = "";
 let hoveredPolicyId = null;
 let policyEventsBound = false;
 const APPROVAL_BAR_MAX_WIDTH = 95;
+const POLICY_BY_ID = new Map(POLICIES.map(policy => [policy.id, policy]));
+const SEARCH_INDEX = POLICIES.map(policy => ({
+  id: policy.id,
+  text: `${policy.name} ${policy.description} ${policy.category}`.toLowerCase(),
+}));
 
 // ── Main render entry point ───────────────────────────────────────────────────
 export function renderGameState(gs) {
@@ -116,21 +121,30 @@ function renderCategoryTabs() {
 
 function renderPolicyCards(gs) {
   const grid = document.getElementById("policy-grid");
+  const count = document.getElementById("policy-count");
   if (!grid) return;
 
   const enacted = new Set(gs.enactedPolicyIds);
   let filtered = POLICIES;
+  let filteredIds = null;
   if (activeCategory !== "All") {
     filtered = filtered.filter(p => p.category === activeCategory);
   }
 
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
-    filtered = filtered.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q)
+    filteredIds = new Set(
+      SEARCH_INDEX.filter(entry => entry.text.includes(q)).map(entry => entry.id)
     );
+    filtered = filtered.filter(policy => filteredIds.has(policy.id));
+  }
+
+  if (count) {
+    const total = POLICIES.length;
+    const label = filtered.length === total
+      ? `${total} policies`
+      : `${filtered.length} of ${total} policies`;
+    count.textContent = label;
   }
 
   if (filtered.length === 0) {
@@ -412,15 +426,15 @@ export function setupPolicyEvents() {
     const detailsBtn = e.target.closest(".btn-details");
 
     if (enactBtn) {
-      const policy = POLICIES.find(p => p.id === enactBtn.dataset.policyId);
+      const policy = POLICY_BY_ID.get(enactBtn.dataset.policyId);
       if (policy) showEnactConfirm(GameState.gameState, policy);
     }
     if (repealBtn) {
-      const policy = POLICIES.find(p => p.id === repealBtn.dataset.policyId);
+      const policy = POLICY_BY_ID.get(repealBtn.dataset.policyId);
       if (policy) showRepealConfirm(GameState.gameState, policy);
     }
     if (detailsBtn) {
-      const policy = POLICIES.find(p => p.id === detailsBtn.dataset.policyId);
+      const policy = POLICY_BY_ID.get(detailsBtn.dataset.policyId);
       if (policy) showPolicyDetails(GameState.gameState, policy);
     }
   });

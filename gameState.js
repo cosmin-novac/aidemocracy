@@ -35,16 +35,18 @@ export let gameState = buildInitialState();
 /** Apply a policy's effects to the game state and record it as enacted. */
 export function enactPolicy(gs, policy) {
   gs.credits -= policy.cost;
+  const metricsById = new Map(gs.metrics.map(metric => [metric.id, metric]));
+  const votersById = new Map(gs.voters.map(voter => [voter.id, voter]));
 
   // Apply metric effects
   for (const eff of policy.metricEffects) {
-    const metric = gs.metrics.find(m => m.id === eff.id);
+    const metric = metricsById.get(eff.id);
     if (metric) metric.value = clamp(metric.value + eff.change);
   }
 
   // Apply voter effects
   for (const eff of policy.voterEffects) {
-    const voter = gs.voters.find(v => v.id === eff.id);
+    const voter = votersById.get(eff.id);
     if (voter) voter.approval = clamp(voter.approval + eff.change, 0, 100);
   }
 
@@ -54,16 +56,18 @@ export function enactPolicy(gs, policy) {
 /** Repeal an enacted policy and reverse its effects (costs a small fee). */
 export function repealPolicy(gs, policy, repealCost = 20) {
   gs.credits -= repealCost;
+  const metricsById = new Map(gs.metrics.map(metric => [metric.id, metric]));
+  const votersById = new Map(gs.voters.map(voter => [voter.id, voter]));
 
   // Reverse metric effects
   for (const eff of policy.metricEffects) {
-    const metric = gs.metrics.find(m => m.id === eff.id);
+    const metric = metricsById.get(eff.id);
     if (metric) metric.value = clamp(metric.value - eff.change);
   }
 
   // Reverse voter effects
   for (const eff of policy.voterEffects) {
-    const voter = gs.voters.find(v => v.id === eff.id);
+    const voter = votersById.get(eff.id);
     if (voter) voter.approval = clamp(voter.approval - eff.change, 0, 100);
   }
 
