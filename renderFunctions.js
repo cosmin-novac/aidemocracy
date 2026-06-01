@@ -33,6 +33,9 @@ let searchQuery = "";
 let hoveredPolicyId = null;
 let policyEventsBound = false;
 const APPROVAL_BAR_MAX_WIDTH = 95;
+const APPROVAL_BAR_MIN_WIDTH = 40;
+const IMPACT_MAP_MIN_WIDTH = 820;
+const POLICY_LABEL_MAX_LENGTH = 22;
 const POLICY_BY_ID = new Map(POLICIES.map(policy => [policy.id, policy]));
 const SEARCH_INDEX = POLICIES.map(policy => ({
   id: policy.id,
@@ -189,7 +192,7 @@ function renderImpactMap(gs) {
   const container = document.getElementById("svg-container");
   if (!container || typeof d3 === "undefined") return;
 
-  const width = Math.max(container.clientWidth || 820, 820);
+  const width = Math.max(container.clientWidth || IMPACT_MAP_MIN_WIDTH, IMPACT_MAP_MIN_WIDTH);
   const height = container.clientHeight || 340;
   const centerX = width * 0.45;
   const centerY = height * 0.53;
@@ -337,7 +340,9 @@ function renderImpactMap(gs) {
     .attr("x", d => d.x)
     .attr("y", d => d.y - 13)
     .attr("text-anchor", "middle")
-    .text(d => d.name.length > 22 ? `${d.name.slice(0, 21)}…` : d.name);
+    .text(d => d.name.length > POLICY_LABEL_MAX_LENGTH
+      ? `${d.name.slice(0, POLICY_LABEL_MAX_LENGTH - 1)}…`
+      : d.name);
 
   svg.selectAll(".voter-node")
     .data(voterNodes)
@@ -346,7 +351,7 @@ function renderImpactMap(gs) {
     .attr("class", "impact-node impact-voter-node")
     .attr("x", d => d.x - 5)
     .attr("y", d => d.y - 8)
-    .attr("width", d => Math.max(40, (d.approval / 100) * APPROVAL_BAR_MAX_WIDTH))
+    .attr("width", d => Math.max(APPROVAL_BAR_MIN_WIDTH, (d.approval / 100) * APPROVAL_BAR_MAX_WIDTH))
     .attr("height", 14)
     .attr("rx", 6);
 
