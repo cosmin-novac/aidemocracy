@@ -30,12 +30,14 @@ function catColor(cat) {
 // ── Current filter state ──────────────────────────────────────────────────────
 let activeCategory = "All";
 let searchQuery = "";
+let hoveredPolicyId = null;
 
 // ── Main render entry point ───────────────────────────────────────────────────
 export function renderGameState(gs) {
   renderHeader(gs);
   renderMetrics(gs);
   renderPolicyBrowser(gs);
+  renderImpactMap(gs);
   renderVoterPanel(gs);
   renderEnactedPanel(gs);
 }
@@ -119,6 +121,7 @@ function renderPolicyCards(gs) {
   if (activeCategory !== "All") {
     filtered = filtered.filter(p => p.category === activeCategory);
   }
+
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     filtered = filtered.filter(p =>
@@ -164,6 +167,181 @@ function renderPolicyCards(gs) {
       </div>
     </div>`;
   }).join("");
+}
+
+function renderImpactMap(gs) {
+  const container = document.getElementById("svg-container");
+  if (!container || typeof d3 === "undefined") return;
+
+  const width = Math.max(container.clientWidth || 820, 820);
+  const height = container.clientHeight || 340;
+  const centerX = width * 0.45;
+  const centerY = height * 0.53;
+  const stateRadius = Math.min(width, height) * 0.3;
+
+  const svg = d3.select(container).html("")
+    .append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+  const enactedById = new Set(gs.enactedPolicyIds);
+  const activePolicies = POLICIES.filter(p => enactedById.has(p.id));
+  const hovered = hoveredPolicyId && !enactedById.has(hoveredPolicyId)
+    ? POLICIES.find(p => p.id === hoveredPolicyId)
+    : null;
+  const previewPolicies = hovered ? [hovered] : [];
+  const visiblePolicies = [...activePolicies, ...previewPolicies];
+
+  const metricNodes = gs.metrics.map((m, i, arr) => {
+    const angle = (i / arr.length) * (Math.PI * 2) - (Math.PI / 2);
+    return {
+      id: m.id,
+      name: m.name,
+      x: centerX + Math.cos(angle) * stateRadius,
+      y: centerY + Math.sin(angle) * stateRadius,
+      category: m.category,
+      value: m.value
+    };
+  });
+
+  const voterStartX = width * 0.75;
+  const voterStartY = 24;
+  const voterStep = (height - 40) / Math.max(gs.voters.length, 1);
+  const voterNodes = gs.voters.map((v, i) => ({
+    id: v.id,
+    name: v.name,
+    x: voterStartX,
+    y: voterStartY + i * voterStep + (voterStep * 0.3),
+    approval: v.approval
+  }));
+
+  const policyNodes = visiblePolicies.map((p, i, arr) => {
+    const angle = (i / Math.max(arr.length, 1)) * (Math.PI * 2);
+    const r = Math.max(38, stateRadius * 0.42);
+    return {
+      id: p.id,
+      name: p.name,
+      x: centerX + Math.cos(angle) * r,
+      y: centerY + Math.sin(angle) * r,
+      category: p.category,
+      isPreview: !!hovered && p.id === hovered.id
+    };
+  });
+
+  const metricById = new Map(metricNodes.map(n => [n.id, n]));
+  const voterById = new Map(voterNodes.map(n => [n.id, n]));
+  const policyById = new Map(policyNodes.map(n => [n.id, n]));
+
+  const links = [];
+  for (const policy of visiblePolicies) {
+    const source = policyById.get(policy.id);
+    if (!source) continue;
+    for (const effect of policy.metricEffects) {
+      const target = metricById.get(effect.id);
+      if (!target) continue;
+      links.push({
+        source,
+        target,
+        change: effect.change,
+        isPreview: source.isPreview,
+      });
+    }
+    for (const effect of policy.voterEffects) {
+      const target = voterById.get(effect.id);
+      if (!target) continue;
+      links.push({
+        source,
+        target,
+        change: effect.change,
+        isPreview: source.isPreview,
+      });
+    }
+  }
+
+  svg.append("circle")
+    .attr("cx", centerX)
+    .attr("cy", centerY)
+    .attr("r", stateRadius + 18)
+    .attr("fill", "#f8fafc")
+    .attr("stroke", "#cbd5e1")
+    .attr("stroke-width", 1.2);
+
+  svg.selectAll(".impact-line")
+    .data(links)
+    .enter()
+    .append("line")
+    .attr("class", d => `impact-line ${d.isPreview ? "preview" : "enacted"}`)
+    .attr("x1", d => d.source.x)
+    .attr("y1", d => d.source.y)
+    .attr("x2", d => d.target.x)
+    .attr("y2", d => d.target.y)
+    .attr("stroke", d => d.change >= 0 ? "#22c55e" : "#ef4444")
+    .attr("stroke-opacity", d => d.isPreview ? 0.5 : 0.75)
+    .attr("stroke-width", d => Math.max(1.5, Math.min(6, Math.abs(d.change) / 4)))
+    .append("title")
+    .text(d => `${d.source.name} → ${d.target.name}: ${d.change >= 0 ? "+" : ""}${d.change}`);
+
+  svg.selectAll(".metric-node")
+    .data(metricNodes)
+    .enter()
+    .append("circle")
+    .attr("class", "impact-node metric-node")
+    .attr("cx", d => d.x)
+    .attr("cy", d => d.y)
+    .attr("r", 10)
+    .attr("fill", "#3b82f6")
+    .attr("stroke", "#1d4ed8");
+
+  svg.selectAll(".metric-label")
+    .data(metricNodes)
+    .enter()
+    .append("text")
+    .attr("class", "impact-label metric-label")
+    .attr("x", d => d.x)
+    .attr("y", d => d.y + 20)
+    .attr("text-anchor", "middle")
+    .text(d => d.name);
+
+  svg.selectAll(".policy-node")
+    .data(policyNodes)
+    .enter()
+    .append("circle")
+    .attr("class", "impact-node policy-node")
+    .attr("cx", d => d.x)
+    .attr("cy", d => d.y)
+    .attr("r", 9)
+    .attr("fill", d => d.isPreview ? "#f59e0b" : "#22c55e")
+    .attr("stroke", d => d.isPreview ? "#b45309" : "#15803d");
+
+  svg.selectAll(".policy-label")
+    .data(policyNodes)
+    .enter()
+    .append("text")
+    .attr("class", "impact-label policy-label")
+    .attr("x", d => d.x)
+    .attr("y", d => d.y - 13)
+    .attr("text-anchor", "middle")
+    .text(d => d.name.length > 22 ? `${d.name.slice(0, 21)}…` : d.name);
+
+  svg.selectAll(".voter-node")
+    .data(voterNodes)
+    .enter()
+    .append("rect")
+    .attr("class", "impact-node impact-voter-node")
+    .attr("x", d => d.x - 5)
+    .attr("y", d => d.y - 8)
+    .attr("width", d => Math.max(40, d.approval * 0.95))
+    .attr("height", 14)
+    .attr("rx", 6);
+
+  svg.selectAll(".voter-label")
+    .data(voterNodes)
+    .enter()
+    .append("text")
+    .attr("class", "impact-label voter-label")
+    .attr("x", d => d.x + 2)
+    .attr("y", d => d.y + 5)
+    .text(d => `${d.name} (${Math.round(d.approval)}%)`);
 }
 
 // ── Voter panel ───────────────────────────────────────────────────────────────
@@ -240,6 +418,22 @@ export function setupPolicyEvents() {
       const policy = POLICIES.find(p => p.id === detailsBtn.dataset.policyId);
       if (policy) showPolicyDetails(GameState.gameState, policy);
     }
+  });
+
+  grid && grid.addEventListener("mouseover", e => {
+    const card = e.target.closest(".policy-card");
+    if (!card?.dataset.policyId) return;
+    hoveredPolicyId = card.dataset.policyId;
+    renderImpactMap(GameState.gameState);
+  });
+
+  grid && grid.addEventListener("mouseout", e => {
+    const card = e.target.closest(".policy-card");
+    if (!card) return;
+    const to = e.relatedTarget;
+    if (to && card.contains(to)) return;
+    hoveredPolicyId = null;
+    renderImpactMap(GameState.gameState);
   });
 
   // Search
