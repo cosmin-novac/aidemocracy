@@ -31,6 +31,8 @@ function catColor(cat) {
 let activeCategory = "All";
 let searchQuery = "";
 let hoveredPolicyId = null;
+let policyEventsBound = false;
+const APPROVAL_BAR_MAX_WIDTH = 95;
 
 // ── Main render entry point ───────────────────────────────────────────────────
 export function renderGameState(gs) {
@@ -262,8 +264,8 @@ function renderImpactMap(gs) {
     .attr("cx", centerX)
     .attr("cy", centerY)
     .attr("r", stateRadius + 18)
-    .attr("fill", "#f8fafc")
-    .attr("stroke", "#cbd5e1")
+    .attr("fill", "var(--surface-2)")
+    .attr("stroke", "var(--border)")
     .attr("stroke-width", 1.2);
 
   svg.selectAll(".impact-line")
@@ -275,7 +277,7 @@ function renderImpactMap(gs) {
     .attr("y1", d => d.source.y)
     .attr("x2", d => d.target.x)
     .attr("y2", d => d.target.y)
-    .attr("stroke", d => d.change >= 0 ? "#22c55e" : "#ef4444")
+    .attr("stroke", d => d.change >= 0 ? "var(--good)" : "var(--bad)")
     .attr("stroke-opacity", d => d.isPreview ? 0.5 : 0.75)
     .attr("stroke-width", d => Math.max(1.5, Math.min(6, Math.abs(d.change) / 4)))
     .append("title")
@@ -289,8 +291,8 @@ function renderImpactMap(gs) {
     .attr("cx", d => d.x)
     .attr("cy", d => d.y)
     .attr("r", 10)
-    .attr("fill", "#3b82f6")
-    .attr("stroke", "#1d4ed8");
+    .attr("fill", "var(--accent)")
+    .attr("stroke", "var(--accent-dark)");
 
   svg.selectAll(".metric-label")
     .data(metricNodes)
@@ -310,8 +312,8 @@ function renderImpactMap(gs) {
     .attr("cx", d => d.x)
     .attr("cy", d => d.y)
     .attr("r", 9)
-    .attr("fill", d => d.isPreview ? "#f59e0b" : "#22c55e")
-    .attr("stroke", d => d.isPreview ? "#b45309" : "#15803d");
+    .attr("fill", d => d.isPreview ? "var(--warn)" : "var(--good)")
+    .attr("stroke", d => d.isPreview ? "var(--warn-dark)" : "var(--accent-dark)");
 
   svg.selectAll(".policy-label")
     .data(policyNodes)
@@ -330,7 +332,7 @@ function renderImpactMap(gs) {
     .attr("class", "impact-node impact-voter-node")
     .attr("x", d => d.x - 5)
     .attr("y", d => d.y - 8)
-    .attr("width", d => Math.max(40, d.approval * 0.95))
+    .attr("width", d => Math.max(40, (d.approval / 100) * APPROVAL_BAR_MAX_WIDTH))
     .attr("height", 14)
     .attr("rx", 6);
 
@@ -387,6 +389,9 @@ function renderEnactedPanel(gs) {
 // ── Event delegation (called once from main.js after DOM ready) ───────────────
 // Always reads from GameState.gameState so load/reset is reflected automatically.
 export function setupPolicyEvents() {
+  if (policyEventsBound) return;
+  policyEventsBound = true;
+
   const grid = document.getElementById("policy-grid");
   const tabs = document.getElementById("category-tabs");
   const searchInput = document.getElementById("policy-search");
@@ -423,6 +428,7 @@ export function setupPolicyEvents() {
   grid && grid.addEventListener("mouseover", e => {
     const card = e.target.closest(".policy-card");
     if (!card?.dataset.policyId) return;
+    if (hoveredPolicyId === card.dataset.policyId) return;
     hoveredPolicyId = card.dataset.policyId;
     renderImpactMap(GameState.gameState);
   });
@@ -430,8 +436,14 @@ export function setupPolicyEvents() {
   grid && grid.addEventListener("mouseout", e => {
     const card = e.target.closest(".policy-card");
     if (!card) return;
-    const to = e.relatedTarget;
-    if (to && card.contains(to)) return;
+    const nextCard = e.relatedTarget?.closest?.(".policy-card");
+    if (nextCard?.dataset.policyId) {
+      if (hoveredPolicyId === nextCard.dataset.policyId) return;
+      hoveredPolicyId = nextCard.dataset.policyId;
+      renderImpactMap(GameState.gameState);
+      return;
+    }
+    if (!hoveredPolicyId) return;
     hoveredPolicyId = null;
     renderImpactMap(GameState.gameState);
   });
