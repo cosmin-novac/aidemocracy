@@ -8,6 +8,10 @@ export function clamp(value, min = 0, max = 200) {
   return Math.max(min, Math.min(max, value));
 }
 
+function createEntityIndex(items) {
+  return new Map(items.map(item => [item.id, item]));
+}
+
 /** Compute the overall public-approval score (0-100). */
 export function overallApproval(gs) {
   const voters = gs.voters;
@@ -35,8 +39,8 @@ export let gameState = buildInitialState();
 /** Apply a policy's effects to the game state and record it as enacted. */
 export function enactPolicy(gs, policy) {
   gs.credits -= policy.cost;
-  const metricsById = new Map(gs.metrics.map(metric => [metric.id, metric]));
-  const votersById = new Map(gs.voters.map(voter => [voter.id, voter]));
+  const metricsById = createEntityIndex(gs.metrics);
+  const votersById = createEntityIndex(gs.voters);
 
   // Apply metric effects
   for (const eff of policy.metricEffects) {
@@ -56,8 +60,8 @@ export function enactPolicy(gs, policy) {
 /** Repeal an enacted policy and reverse its effects (costs a small fee). */
 export function repealPolicy(gs, policy, repealCost = 20) {
   gs.credits -= repealCost;
-  const metricsById = new Map(gs.metrics.map(metric => [metric.id, metric]));
-  const votersById = new Map(gs.voters.map(voter => [voter.id, voter]));
+  const metricsById = createEntityIndex(gs.metrics);
+  const votersById = createEntityIndex(gs.voters);
 
   // Reverse metric effects
   for (const eff of policy.metricEffects) {
