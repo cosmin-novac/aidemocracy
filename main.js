@@ -1,216 +1,118 @@
-import * as RenderFunctions from './renderFunctions.js';
-import * as ImpactFunctions from './impactFunctions.js';
-import * as PolicyFunctions from './policyFunctions.js';
+// main.js — Application bootstrap and event handlers
 import * as GameState from './gameState.js';
+import * as RenderFunctions from './renderFunctions.js';
 
-$(document).ready(function() {
-  window.alert = function (message) {
-    Swal.fire({
-      // title: 'Alert',
-      text: message,
-      icon: 'warning'
-    });
-  };
+document.addEventListener("DOMContentLoaded", () => {
 
-$(document).on('click', '#add-policy', function() {
-  PolicyFunctions.generateFivePolicies(GameState.gameState, GameState.getSavedAPIKey(), function(policies) {
-    let policyOptionsHtml = '';
-    for (let i = 0; i < policies.length; i++) {
-      policyOptionsHtml += `
-        <input type="radio" id="policy-option-${i}" name="policy-option" value="${policies[i].name}">
-        <label for="policy-option-${i}">${policies[i].name} (${policies[i].description})</label><br>
-      `;
-    }
-    Swal.fire({
-      title: 'Enter Policy Details',
-      html: `
-        ${policyOptionsHtml}
-        <label for="custom-policy">Or enter your own policy:</label><br>
-        <input id="swal-input1" class="swal2-input" placeholder="Policy Name">
-        <input id="swal-input2" class="swal2-input" placeholder="Policy Description (Optional)">
-      `,
-      focusConfirm: false,
-      preConfirm: () => {
-        const selectedPolicyOption = $('input[name=policy-option]:checked').val();
-        if (selectedPolicyOption) {
-          return [selectedPolicyOption, ''];
-        } else {
-          return [
-            document.getElementById('swal-input1').value,
-            document.getElementById('swal-input2').value
-          ];
-        }
-      },
-      didOpen: () => {
-        const input1 = document.getElementById('swal-input1');
-        const input2 = document.getElementById('swal-input2');
-
-        input1.addEventListener('keydown', handleSwalInputKeyDown);
-        input2.addEventListener('keydown', handleSwalInputKeyDown);
-      }
-    }).then((result) => {
-      if (result.value) {
-        const newPolicy = {
-          id: result.value[0].toLowerCase().replace(/\s/g, ""),
-          name: result.value[0],
-          description: result.value[1],
-          type: "policy",
-          cost: 30
-        };
-
-        PolicyFunctions.addPolicyAndGenerateImpacts(GameState.gameState, GameState.getSavedAPIKey(), newPolicy)
-      }
-    });
-  }, function(xhr, textStatus, errorThrown) {
-    let errorMessage;
-    if (xhr.status === 401) {
-      errorMessage = 'API key is missing or invalid. Please check your settings.';
-    } else {
-      errorMessage = `Error calling GPT-3 API: ${xhr.responseText}`;
-    }
-    alert(errorMessage);
-  });
-});
-
-
-  // Function to handle Enter key press in Swal input fields
-  function handleSwalInputKeyDown(event) {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      Swal.clickConfirm();
-    }
-  }
-
-  // Event listener for settings button
-  $(document).on('click', '#settings-button', function() {
-    Swal.fire({
-      title: 'Settings',
-      html: `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <label for="api-key-input" style="margin-right: 10px;">OpenAI API Key</label>
-          <input id="api-key-input" class="swal2-input" placeholder="Enter your OpenAI API key" value="${GameState.getSavedAPIKey()}" style="flex-grow: 1;margin: 10px;">
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <button id="save-game" class="swal2-button" style="width: 100%; margin-top: 10px;">Save Game</button>
-          <button id="load-game" class="swal2-button" style="width: 100%; margin-top: 10px;">Load Game</button>
-        </div>
-      `,
-      focusConfirm: false,
-      preConfirm: () => {
-        const apiKey = document.getElementById('api-key-input').value;
-        GameState.saveAPIKey(apiKey);
-      }
-    });
-  });
-
-  // Save game state to localStorage
-  $(document).on('click', '#save-game', function(){
-    Swal.fire({
-      title: 'Enter a name for your save',
-      input: 'text',
-      inputAttributes: {
-        autocapitalize: 'off'
-      },
-      showCancelButton: true,
-      confirmButtonText: 'Save',
-      showLoaderOnConfirm: true,
-      preConfirm: (saveName) => {
-        let savedGameStates = JSON.parse(localStorage.getItem('savedGameStates')) || {};
-        savedGameStates[saveName] = GameState.gameState;
-
-        // Update the node positions
-        for (let node of savedGameStates[saveName].nodes) {
-          node.pos.x = node.x;
-          node.pos.y = node.y;
-        }
-
-        localStorage.setItem('savedGameStates', JSON.stringify(savedGameStates));
-      },
-      allowOutsideClick: () => !Swal.isLoading()
-    });
-  });
-
-  // Load game state from localStorage
-  $(document).on('click', '#load-game', function(){
-    let savedGameStates = JSON.parse(localStorage.getItem('savedGameStates')) || {};
-    let saveNames = Object.keys(savedGameStates);
-
-    if(saveNames.length > 0){
-      let selectHTML = '<select id="load-game-select" class="modal-select" style="width: 100%; padding: 10px; font-size: 16px;">';
-      saveNames.forEach((saveName) => {
-        selectHTML += `<option value="${saveName}">${saveName}</option>`;
-      });
-      selectHTML += '</select>';
-
-      Swal.fire({
-        title: 'Load Game',
-        html: `
-          <p>Select a game to load.</p>
-          ${selectHTML}
-          <button id="delete-game" class="modal-button delete-button" style="width: 100%; margin-top: 10px;">Delete Selected Save</button>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Load',
-        cancelButtonText: 'Cancel',
-        preConfirm: () => {
-          let selectedSaveName = document.getElementById('load-game-select').value;
-          $("#loaded-game-name").text(selectedSaveName);
-          GameState.updateGameState(savedGameStates[selectedSaveName]);
-        }
-      });
-    } else {
-      Swal.fire({
-        title: 'No Saved Games',
-        text: 'You have no saved games. To save a game, click "Save Game" in the settings menu.',
-        icon: 'info'
-      });
-    }
-  });
-
-  $(document).on('click', '#delete-game', function(e){
-    e.preventDefault(); // Prevent form submission
-    let savedGameStates = JSON.parse(localStorage.getItem('savedGameStates')) || {};
-    let selectedSaveName = document.getElementById('load-game-select').value;
-
-    // Remove selected game from localStorage
-    delete savedGameStates[selectedSaveName];
-    localStorage.setItem('savedGameStates', JSON.stringify(savedGameStates));
-
-    // Refresh the select options
-    let selectHTML = '<select id="load-game-select">';
-    Object.keys(savedGameStates).forEach((saveName) => {
-      selectHTML += `<option value="${saveName}">${saveName}</option>`;
-    });
-    selectHTML += '</select>';
-
-    // Update the modal content
-    Swal.update({
-      html: selectHTML + '<button id="delete-game" class="modal-button delete-button">Delete Selected Save</button>'
-    });
-  });
-
-
-  // Event listener for ending round
-  $(document).on('click', '#end-round', function() {
-    const refillAmount = 100; // Define the amount of credits to refill at the end of a round
-    GameState.gameState.credits += refillAmount;
-    GameState.gameState.currentRound += 1; // Increment the round value
-
-    // Call the generateEvent function when a round ends
-    PolicyFunctions.generateEvent(GameState.gameState, GameState.getSavedAPIKey());
-    
-    GameState.calculateFinalScore(GameState.gameState); 
-    RenderFunctions.renderGameState(GameState.gameState);
-  });
-
-  //info
-  const infoButton = document.getElementById('info-button');
-  const gameDescription = document.getElementById('game-description');
-  infoButton.addEventListener('mouseenter', function() {gameDescription.classList.add('visible')});
-  infoButton.addEventListener('mouseleave', function() {gameDescription.classList.remove('visible')});
-
-  // Initial render
-  GameState.calculateFinalScore(GameState.gameState); 
+  // ── Initial render ────────────────────────────────────────────────────────
   RenderFunctions.renderGameState(GameState.gameState);
-  $('#loading-overlay').hide()
+  RenderFunctions.setupPolicyEvents();
+
+  // ── End Round ─────────────────────────────────────────────────────────────
+  document.getElementById("end-round").addEventListener("click", () => {
+    const gs = GameState.gameState;
+    GameState.endRound(gs);
+    RenderFunctions.renderGameState(gs);
+
+    const approval = GameState.overallApproval(gs);
+    const icon = approval >= 60 ? "success" : approval >= 40 ? "info" : "warning";
+    Swal.fire({
+      icon,
+      title: `Round ${gs.currentRound - 1} Complete`,
+      html: `<p>A new round begins. You received <strong>75 credits</strong>.</p>
+             <p>Overall approval: <strong>${approval}%</strong></p>`,
+      confirmButtonText: "Continue",
+      timer: 3500,
+      timerProgressBar: true,
+    });
+  });
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  document.getElementById("settings-btn").addEventListener("click", () => {
+    const saves = GameState.listSaves();
+    const saveOptions = saves.length
+      ? saves.map(n => `<option value="${n}">${n}</option>`).join("")
+      : `<option disabled>No saves found</option>`;
+
+    Swal.fire({
+      title: "Settings",
+      html: `
+        <div style="text-align:left">
+          <div style="margin-bottom:16px">
+            <label style="font-weight:600;display:block;margin-bottom:6px">Save Game</label>
+            <div style="display:flex;gap:8px">
+              <input id="save-name-input" class="swal2-input" style="margin:0;flex:1" placeholder="Save name…">
+              <button id="do-save" class="swal2-confirm swal2-styled" style="margin:0;min-width:80px">Save</button>
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <label style="font-weight:600;display:block;margin-bottom:6px">Load Game</label>
+            <div style="display:flex;gap:8px">
+              <select id="save-select" class="swal2-input" style="margin:0;flex:1">${saveOptions}</select>
+              <button id="do-load" class="swal2-confirm swal2-styled" style="margin:0;min-width:80px" ${!saves.length ? "disabled" : ""}>Load</button>
+            </div>
+          </div>
+          <div>
+            <button id="do-new-game" class="swal2-cancel swal2-styled" style="width:100%;margin:0">New Game</button>
+          </div>
+        </div>`,
+      showConfirmButton: false,
+      didOpen: () => {
+        document.getElementById("do-save").addEventListener("click", () => {
+          const name = document.getElementById("save-name-input").value.trim();
+          if (!name) return;
+          GameState.saveGame(name);
+          Swal.fire({ icon: "success", title: "Saved", text: `Game saved as "${name}".`, timer: 1500, showConfirmButton: false });
+        });
+
+        document.getElementById("do-load").addEventListener("click", () => {
+          const name = document.getElementById("save-select").value;
+          if (!name) return;
+          try {
+            GameState.loadGame(name);
+            Swal.close();
+            Swal.fire({ icon: "success", title: "Loaded", text: `"${name}" loaded.`, timer: 1500, showConfirmButton: false });
+          } catch (err) {
+            Swal.fire({ icon: "error", title: "Load Failed", text: "Save data appears corrupted and could not be loaded." });
+          }
+        });
+
+        document.getElementById("do-new-game").addEventListener("click", () => {
+          Swal.fire({
+            title: "New Game?",
+            text: "All unsaved progress will be lost.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, start over",
+            confirmButtonColor: "#dc2626",
+          }).then(r => {
+            if (r.isConfirmed) {
+              GameState.resetGameState();
+              Swal.fire({ icon: "success", title: "New Game Started", timer: 1200, showConfirmButton: false });
+            }
+          });
+        });
+      },
+    });
+  });
+
+  // ── Info button ───────────────────────────────────────────────────────────
+  document.getElementById("info-btn").addEventListener("click", () => {
+    Swal.fire({
+      title: "About AI Democracy",
+      html: `<p style="text-align:left">
+        <strong>AI Democracy</strong> is a policy simulation game where you govern a modern democracy.
+        Each round you receive <strong>Political Credits</strong> to spend on policies drawn from
+        a curated catalogue spanning the economy, environment, healthcare, education, and much more.
+      </p>
+      <ul style="text-align:left;padding-left:20px">
+        <li>Browse policies by category using the tabs in the Policy Browser.</li>
+        <li>Click <em>Enact</em> to pass a policy and see its effects on national indicators and voter approval.</li>
+        <li>Click <em>Repeal</em> (20 cr) to reverse a policy if it isn't working.</li>
+        <li>End the round to receive 75 new credits and let the world drift slightly.</li>
+        <li>Save and load your game from the Settings menu.</li>
+      </ul>`,
+      confirmButtonText: "Got it",
+    });
+  });
 });
