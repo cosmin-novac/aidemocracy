@@ -5,16 +5,22 @@
 /* ── CSS Variables ─────────────────────────────────────────────────────────── */
 :root {
   --bg:          #f1f5f9;
+  --bg-soft:     #f8fbff;
+  --bg-soft-2:   #e6edf5;
+  --panel-tint:  #eef4fb;
   --surface:     #ffffff;
   --surface-2:   #f8fafc;
   --border:      #e2e8f0;
+  --border-strong:#94a3b8;
   --text:        #1e293b;
+  --text-strong: #334155;
   --text-muted:  #64748b;
   --accent:      #3b82f6;
   --accent-dark: #1d4ed8;
   --good:        #10b981;
   --bad:         #ef4444;
   --warn:        #f59e0b;
+  --warn-dark:   #b45309;
   --header-h:    64px;
   --footer-h:    60px;
   --sidebar-w:   260px;
@@ -30,7 +36,7 @@ html { font-size: 14px; }
 
 body {
   font-family: 'Open Sans', system-ui, sans-serif;
-  background: radial-gradient(circle at top, #f8fbff 0%, var(--bg) 48%, #e6edf5 100%);
+  background: radial-gradient(circle at top, var(--bg-soft) 0%, var(--bg) 48%, var(--bg-soft-2) 100%);
   color: var(--text);
   height: 100vh;
   display: flex;
@@ -217,14 +223,14 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: linear-gradient(180deg, #eef4fb 0%, var(--bg) 100%);
+  background: linear-gradient(180deg, var(--panel-tint) 0%, var(--bg) 100%);
   border: none;
 }
 
 #svg-container {
   height: 340px;
   margin: 14px 16px 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow);
@@ -298,7 +304,7 @@ body {
 .cat-tab.active {
   background: var(--cat-color, var(--accent));
   border-color: var(--cat-color, var(--accent));
-  color: #fff;
+  color: var(--surface);
 }
 
 #policy-grid {
@@ -446,6 +452,11 @@ body {
   animation: flowAnimationForwards linear infinite;
 }
 
+@keyframes flowAnimationForwards {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -220; }
+}
+
 .impact-line.preview {
   stroke-dasharray: 6 5;
   animation-duration: 4s;
@@ -463,13 +474,13 @@ body {
 .impact-label {
   font-size: 11px;
   font-weight: 700;
-  fill: #334155;
+  fill: var(--text-strong);
   pointer-events: none;
 }
 
 .impact-voter-node {
-  fill: #f1f5f9;
-  stroke: #94a3b8;
+  fill: var(--bg);
+  stroke: var(--border-strong);
 }
 
 /* ── Social panel (right) ──────────────────────────────────────────────────── */
