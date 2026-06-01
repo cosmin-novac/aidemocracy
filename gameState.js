@@ -28,7 +28,7 @@ function buildInitialState() {
   };
 }
 
-export var gameState = buildInitialState();
+export let gameState = buildInitialState();
 
 // ── State mutations ───────────────────────────────────────────────────────────
 
@@ -75,17 +75,19 @@ export function endRound(gs) {
   gs.currentRound += 1;
   gs.credits += 75;       // replenish each round
 
-  // Small passive drift on every metric (±1–3, biased toward 100 baseline)
+  // Each round, metrics and voter approval drift randomly (±2) and are gently
+  // pulled back toward their neutral baseline (100 for metrics, 50 for voters).
+  // This simulates unpredictable world events and mean reversion without policies.
   for (const m of gs.metrics) {
-    const drift = (Math.random() - 0.5) * 4;           // -2 … +2
-    const pullToBase = (100 - m.value) * 0.03;          // gentle pull to 100
+    const drift = (Math.random() - 0.5) * 4;           // random shock: -2 … +2
+    const pullToBase = (100 - m.value) * 0.03;          // mean reversion toward 100
     m.value = clamp(m.value + drift + pullToBase);
   }
 
   // Small passive drift on voter approval
   for (const v of gs.voters) {
     const drift = (Math.random() - 0.5) * 4;
-    const pullToBase = (50 - v.approval) * 0.05;
+    const pullToBase = (50 - v.approval) * 0.05;        // mean reversion toward 50
     v.approval = clamp(v.approval + drift + pullToBase, 0, 100);
   }
 }
