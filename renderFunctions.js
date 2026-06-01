@@ -32,6 +32,7 @@ let activeCategory = "All";
 let searchQuery = "";
 let hoveredPolicyId = null;
 let policyEventsBound = false;
+let impactMapRenderFrame = null;
 const APPROVAL_BAR_MAX_WIDTH = 95;
 const APPROVAL_BAR_MIN_WIDTH = 40;
 const IMPACT_MAP_MIN_WIDTH = 820;
@@ -51,6 +52,14 @@ export function renderGameState(gs) {
   renderImpactMap(gs);
   renderVoterPanel(gs);
   renderEnactedPanel(gs);
+}
+
+function scheduleImpactMapRender(gs) {
+  if (impactMapRenderFrame !== null) return;
+  impactMapRenderFrame = requestAnimationFrame(() => {
+    impactMapRenderFrame = null;
+    renderImpactMap(gs);
+  });
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -450,7 +459,7 @@ export function setupPolicyEvents() {
     if (!card?.dataset.policyId) return;
     if (hoveredPolicyId === card.dataset.policyId) return;
     hoveredPolicyId = card.dataset.policyId;
-    renderImpactMap(GameState.gameState);
+    scheduleImpactMapRender(GameState.gameState);
   });
 
   grid && grid.addEventListener("mouseout", e => {
@@ -460,12 +469,12 @@ export function setupPolicyEvents() {
     if (nextCard?.dataset.policyId) {
       if (hoveredPolicyId === nextCard.dataset.policyId) return;
       hoveredPolicyId = nextCard.dataset.policyId;
-      renderImpactMap(GameState.gameState);
+      scheduleImpactMapRender(GameState.gameState);
       return;
     }
     if (!hoveredPolicyId) return;
     hoveredPolicyId = null;
-    renderImpactMap(GameState.gameState);
+    scheduleImpactMapRender(GameState.gameState);
   });
 
   // Search
