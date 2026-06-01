@@ -7,6 +7,7 @@
 
   <!-- SweetAlert2 for dialogs -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 
   <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -47,11 +48,13 @@
 
     <!-- Centre: Policy browser -->
     <section id="policy-browser" aria-label="Policy browser">
+      <div id="svg-container" aria-label="Policy impact map"></div>
       <div class="browser-header">
         <div class="browser-title-row">
           <span class="browser-title">Policy Catalogue</span>
           <input type="search" id="policy-search" placeholder="Search policies…" aria-label="Search policies">
         </div>
+        <div id="policy-count" aria-live="polite" class="policy-count">0 policies</div>
         <div id="category-tabs" role="tablist" aria-label="Policy categories"></div>
       </div>
       <div id="policy-grid" role="list" aria-label="Policy cards"></div>
