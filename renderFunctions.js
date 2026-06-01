@@ -1,504 +1,336 @@
-import * as ImpactFunctions from './impactFunctions.js';
+// renderFunctions.js — Card-based dashboard renderer
+import { POLICIES, POLICY_CATEGORIES } from './policies.js';
+import * as GameState from './gameState.js';
 import * as PolicyFunctions from './policyFunctions.js';
 
-// Render game state
-export function renderGameState(gameState) {
-  const creditsDisplay = `<p class="game-info">Political Credits: ${gameState.credits}</p>`;
-  const roundDisplay = `<p class="game-info">Round # ${gameState.currentRound}</p>`;
-  $('#policy-actions').html(`
-    <div class="game-info-container">
-      ${creditsDisplay}
-      ${roundDisplay}
-    </div>
-    <div class="game-actions-container">
-      <button id="add-policy">Add Policy</button>
-      <button id="end-round">End Round</button>
-    </div>
-  `);
+// ── Category colour map ───────────────────────────────────────────────────────
+const CAT_COLORS = {
+  "Economy":        "#3b82f6",
+  "Taxation":       "#6366f1",
+  "Labor":          "#f59e0b",
+  "Welfare":        "#10b981",
+  "Healthcare":     "#ef4444",
+  "Education":      "#8b5cf6",
+  "Housing":        "#f97316",
+  "Transport":      "#0ea5e9",
+  "Energy":         "#eab308",
+  "Environment":    "#22c55e",
+  "Immigration":    "#a855f7",
+  "Justice":        "#dc2626",
+  "Civil Liberties":"#14b8a6",
+  "Technology":     "#6b7280",
+  "Foreign Policy": "#64748b",
+  "Civic":          "#0891b2",
+};
 
-  renderSVGCirclesAndLines(gameState);
+function catColor(cat) {
+  return CAT_COLORS[cat] || "#94a3b8";
 }
 
-export function renderSVGCirclesAndLines(gameState) {
-  const svgContainer = "#svg-container";
-  const width = 1500;
-  const height = 750;
-  
-  clearSVGContainer(svgContainer);
-  const svg = createSVG(svgContainer, width, height);
-  const drag = createDragBehavior(svg);
+// ── Current filter state ──────────────────────────────────────────────────────
+let activeCategory = "All";
+let searchQuery = "";
 
-  calculateNodePositions(filterStateAndPolicyNodes(gameState));
-  calculateVoterNodePositions(filterVoterNodes(gameState));
-
-  drawImpactLines(svg, gameState, groupImpacts(gameState.impacts));
-
-  drawVoterNodesAndLabels(svg, filterVoterNodes(gameState), gameState);
-  drawNodesAndLabels(svg, filterStateAndPolicyNodes(gameState), gameState, drag);
-
+// ── Main render entry point ───────────────────────────────────────────────────
+export function renderGameState(gs) {
+  renderHeader(gs);
+  renderMetrics(gs);
+  renderPolicyBrowser(gs);
+  renderVoterPanel(gs);
+  renderEnactedPanel(gs);
 }
 
-export function drawCategoryBackground(svg, startAngle, endAngle, radius, category) {
-
-  const centerX = 700; // Center X coordinate of the canvas
-  const centerY = 320; // Center Y coordinate of the canvas
-
-  // Create an arc generator for the text path
-  const textPathArcGenerator = d3.arc()
-    .innerRadius(radius - 20) // Adjust as needed
-    .outerRadius(radius)
-    .startAngle(startAngle)
-    .endAngle(endAngle);
-
-  // Create an arc generator for the background path
-  const bgArcGenerator = d3.arc()
-    .innerRadius(0)
-    .outerRadius(radius)
-    .startAngle(startAngle)
-    .endAngle(endAngle);
-
-  // Define the text path in the SVG's defs
-  const defs = svg.append('defs');
-
-  const textPathId = `text-path-${category}`;
-
-  defs.append("path")
-    .attr("id", textPathId)
-    .attr("d", textPathArcGenerator())
-    .attr("transform", `translate(${centerX}, ${centerY})`);
-
-  // Draw the arc
-  const arcPath = svg.insert("path", ":first-child") // Insert the path as the first child of the SVG
-    .attr("d", bgArcGenerator())
-    .attr("transform", `translate(${centerX}, ${centerY})`)
-    .style("fill", 'white')
-    .style("stroke", "gray")
-    .style("stroke-width", 1);
-
-  // Add the category name to the arc
-  svg.append("text")
-    .append("textPath") //append a textPath to the text element
-    .attr("xlink:href", `#${textPathId}`) //place the ID of the path here
-    .style("text-anchor","middle") //place the text halfway on the arc
-    .attr("startOffset", "20%")  
-    .text(category !== undefined ? category.toUpperCase() : "");
+// ── Header ────────────────────────────────────────────────────────────────────
+function renderHeader(gs) {
+  const approval = GameState.overallApproval(gs);
+  const approvalClass = approval >= 60 ? "approval-good"
+                      : approval >= 40 ? "approval-ok"
+                      : "approval-bad";
+  document.getElementById("stat-round").textContent   = `Round ${gs.currentRound}`;
+  document.getElementById("stat-credits").textContent = `${gs.credits} Credits`;
+  document.getElementById("stat-approval").textContent = `${approval}% Approval`;
+  document.getElementById("stat-approval").className   = `stat-chip ${approvalClass}`;
+  document.getElementById("stat-enacted").textContent  =
+    `${gs.enactedPolicyIds.length} Policies`;
 }
 
-export function drawNodesAndLabels(svg, stateAndPolicyNodes, gameState, drag) {
-  // Draw category backgrounds
-  let uniqueCategories = Array.from(new Set(stateAndPolicyNodes.map(node => node.category)));
-  const centerX = 700; // Center X coordinate of the canvas
-  const centerY = 320; // Center Y coordinate of the canvas
-  const radius = 300;
-  const segmentCount = 10; // Adjust as needed, determines the number of segments within each category
+// ── Metrics panel ─────────────────────────────────────────────────────────────
+function renderMetrics(gs) {
+  const container = document.getElementById("metrics-list");
+  if (!container) return;
 
-  let categoryArcs = {};
+  // Group metrics by category
+  const byCat = {};
+  for (const m of gs.metrics) {
+    (byCat[m.category] = byCat[m.category] || []).push(m);
+  }
 
-  uniqueCategories.forEach((category, index) => {
-    const anglePerCategory = 2 * Math.PI / uniqueCategories.length;
-    const startAngle = index * anglePerCategory;
-    const endAngle = (index + 1) * anglePerCategory;
-    const arc = d3.arc()
-      .innerRadius(radius - 20) // Adjust as needed
-      .outerRadius(radius)
-      .startAngle(startAngle)
-      .endAngle(endAngle);
-    categoryArcs[category] = arc;
-
-    drawCategoryBackground(svg, startAngle, endAngle, radius, category);
-  });
-
-  stateAndPolicyNodes.forEach((node) => {
-    const x = node.pos.x;
-    const y = node.pos.y;
-
-    // Draw circle
-    svg.append("circle")
-      .datum(node)
-      .attr("cx", x)
-      .attr("cy", y)
-      .attr("r", node.radius)
-      .style("fill", node.type === 'state' ? "blue" : "green")
-      .classed("node-circle", true)
-      .classed("node-circle-state", node.type === "state")
-      .classed("node-circle-policy", node.type === "policy")
-      .on("click", () => {
-        showDetails(gameState, node);
-      })
-      .on("mouseover", () => {
-        ImpactFunctions.showImpactStrength(node);
-        // Adjust opacity of lines
-        svg.selectAll(`.flowing-line`).attr('stroke-opacity', 0.2);
-        svg.selectAll(`.line-${node.id}`).attr('stroke-opacity', 1);
-      })
-      .on("mouseout", () => {
-        ImpactFunctions.hideImpactStrength();
-        // Reset opacity of lines
-        svg.selectAll(`.flowing-line`).attr('stroke-opacity', function () {
-          return d3.select(this).attr("data-default-opacity");
-        });
-      })
-      .call(drag);
-
-    // Draw text label
-    svg.append("text")
-      .datum(node)
-      .attr("x", x)
-      .attr("y", y + 30)
-      .attr("text-anchor", "middle")
-      .text(node.name)
-      .classed("node-label", true)
-      .classed("node-label-state", node.type === "state")
-      .classed("node-label-policy", node.type === "policy")
-      .classed("node-label-voter", node.type === "voter");
-  });
-}
-
-
-export function groupImpacts(impacts) {
-  let groupedImpacts = {};
-  impacts.forEach((impact) => {
-    let key = [impact.from, impact.to].sort().join('-');
-    if (!groupedImpacts[key]) {
-      groupedImpacts[key] = [];
+  let html = "";
+  for (const [cat, metrics] of Object.entries(byCat)) {
+    const color = catColor(cat);
+    html += `<div class="metric-group">
+      <h3 class="metric-group-title" style="border-left:3px solid ${color};padding-left:8px">${cat}</h3>`;
+    for (const m of metrics) {
+      const pct   = Math.round(m.value);           // 0-200
+      const bar   = Math.min(100, m.value / 2);    // 0-100 for bar width
+      const delta = m.value - 100;
+      const good  = m.lowerIsBetter ? delta <= 0 : delta >= 0;
+      const sign  = delta >= 0 ? "+" : "";
+      const barCls= good ? "bar-fill-good" : "bar-fill-bad";
+      html += `
+        <div class="metric-card" title="${m.description}">
+          <div class="metric-name">${m.name}</div>
+          <div class="metric-bar-wrap">
+            <div class="metric-bar">
+              <div class="${barCls}" style="width:${bar}%"></div>
+            </div>
+            <span class="metric-value ${good ? "good" : "bad"}">${sign}${delta}</span>
+          </div>
+        </div>`;
     }
-    groupedImpacts[key].push(impact);
+    html += `</div>`;
+  }
+  container.innerHTML = html;
+}
+
+// ── Policy browser ────────────────────────────────────────────────────────────
+export function renderPolicyBrowser(gs) {
+  renderCategoryTabs();
+  renderPolicyCards(gs);
+}
+
+function renderCategoryTabs() {
+  const tabsEl = document.getElementById("category-tabs");
+  if (!tabsEl) return;
+  const cats = ["All", ...POLICY_CATEGORIES];
+  tabsEl.innerHTML = cats.map(cat =>
+    `<button class="cat-tab ${cat === activeCategory ? "active" : ""}"
+             style="${cat !== "All" ? `--cat-color:${catColor(cat)}` : ""}"
+             data-cat="${cat}">${cat}</button>`
+  ).join("");
+}
+
+function renderPolicyCards(gs) {
+  const grid = document.getElementById("policy-grid");
+  if (!grid) return;
+
+  const enacted = new Set(gs.enactedPolicyIds);
+  let filtered = POLICIES;
+  if (activeCategory !== "All") {
+    filtered = filtered.filter(p => p.category === activeCategory);
+  }
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.description.toLowerCase().includes(q) ||
+      p.category.toLowerCase().includes(q)
+    );
+  }
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="empty-state">No policies match your search.</div>`;
+    return;
+  }
+
+  const color = catColor(activeCategory);
+  grid.innerHTML = filtered.map(policy => {
+    const isEnacted = enacted.has(policy.id);
+    const canAfford = gs.credits >= policy.cost;
+    const c = catColor(policy.category);
+
+    // Summary of key effects for tooltip/preview
+    const topEffects = policy.metricEffects.slice(0, 3)
+      .map(e => {
+        const sign = e.change >= 0 ? "+" : "";
+        return `<span class="eff-tag ${e.change >= 0 ? "pos" : "neg"}">${sign}${e.change} ${e.id}</span>`;
+      }).join(" ");
+
+    return `<div class="policy-card ${isEnacted ? "enacted" : ""} ${!canAfford && !isEnacted ? "unaffordable" : ""}"
+                 style="--cat-color:${c}" data-policy-id="${policy.id}">
+      <div class="policy-card-header">
+        <span class="policy-cat-badge" style="background:${c}">${policy.category}</span>
+        <span class="policy-cost ${!canAfford && !isEnacted ? "cost-high" : ""}">${policy.cost} cr</span>
+      </div>
+      <div class="policy-name">${policy.name}</div>
+      <div class="policy-desc">${policy.description}</div>
+      <div class="policy-effects">${topEffects}</div>
+      <div class="policy-card-footer">
+        ${isEnacted
+          ? `<button class="btn-repeal" data-policy-id="${policy.id}">Repeal (20 cr)</button>`
+          : `<button class="btn-enact" data-policy-id="${policy.id}" ${!canAfford ? "disabled" : ""}>Enact</button>`
+        }
+        <button class="btn-details" data-policy-id="${policy.id}">Details</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── Voter panel ───────────────────────────────────────────────────────────────
+function renderVoterPanel(gs) {
+  const container = document.getElementById("voter-list");
+  if (!container) return;
+
+  container.innerHTML = gs.voters.map(v => {
+    const pct = Math.round(v.approval);
+    const cls = pct >= 60 ? "voter-good" : pct >= 40 ? "voter-ok" : "voter-bad";
+    return `<div class="voter-row" title="${v.description}">
+      <span class="voter-name">${v.name}</span>
+      <div class="voter-bar-wrap">
+        <div class="voter-bar">
+          <div class="voter-fill ${cls}" style="width:${pct}%"></div>
+        </div>
+        <span class="voter-pct ${cls}">${pct}%</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── Enacted panel ─────────────────────────────────────────────────────────────
+function renderEnactedPanel(gs) {
+  const container = document.getElementById("enacted-list");
+  if (!container) return;
+
+  const enacted = GameState.getEnactedPolicies(gs);
+  if (enacted.length === 0) {
+    container.innerHTML = `<div class="empty-state">No policies enacted yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = enacted.map(p => {
+    const c = catColor(p.category);
+    return `<div class="enacted-item" style="border-left:3px solid ${c}">
+      <span class="enacted-name">${p.name}</span>
+      <span class="enacted-cat" style="color:${c}">${p.category}</span>
+    </div>`;
+  }).join("");
+}
+
+// ── Event delegation (called once from main.js after DOM ready) ───────────────
+// Always reads from GameState.gameState so load/reset is reflected automatically.
+export function setupPolicyEvents() {
+  const grid = document.getElementById("policy-grid");
+  const tabs = document.getElementById("category-tabs");
+  const searchInput = document.getElementById("policy-search");
+
+  // Category tab clicks
+  tabs && tabs.addEventListener("click", e => {
+    const btn = e.target.closest(".cat-tab");
+    if (!btn) return;
+    activeCategory = btn.dataset.cat;
+    renderCategoryTabs();
+    renderPolicyCards(GameState.gameState);
   });
-  return groupedImpacts;
+
+  // Policy grid clicks (enact / repeal / details)
+  grid && grid.addEventListener("click", e => {
+    const enactBtn   = e.target.closest(".btn-enact");
+    const repealBtn  = e.target.closest(".btn-repeal");
+    const detailsBtn = e.target.closest(".btn-details");
+
+    if (enactBtn) {
+      const policy = POLICIES.find(p => p.id === enactBtn.dataset.policyId);
+      if (policy) showEnactConfirm(GameState.gameState, policy);
+    }
+    if (repealBtn) {
+      const policy = POLICIES.find(p => p.id === repealBtn.dataset.policyId);
+      if (policy) showRepealConfirm(GameState.gameState, policy);
+    }
+    if (detailsBtn) {
+      const policy = POLICIES.find(p => p.id === detailsBtn.dataset.policyId);
+      if (policy) showPolicyDetails(GameState.gameState, policy);
+    }
+  });
+
+  // Search
+  searchInput && searchInput.addEventListener("input", e => {
+    searchQuery = e.target.value.trim();
+    renderPolicyCards(GameState.gameState);
+  });
 }
 
-export function clearSVGContainer(svgContainer) {
-  d3.select(svgContainer).html("");
+// ── Policy modals ─────────────────────────────────────────────────────────────
+function effectsHtml(policy) {
+  const mRows = policy.metricEffects.map(e => {
+    const sign = e.change >= 0 ? "+" : "";
+    const cls  = e.change >= 0 ? "good" : "bad";
+    return `<tr><td>${e.id}</td><td class="${cls}">${sign}${e.change}</td></tr>`;
+  }).join("");
+  const vRows = policy.voterEffects.map(e => {
+    const sign = e.change >= 0 ? "+" : "";
+    const cls  = e.change >= 0 ? "good" : "bad";
+    return `<tr><td>${e.id}</td><td class="${cls}">${sign}${e.change}%</td></tr>`;
+  }).join("");
+
+  return `
+    <p style="color:#64748b;margin:0 0 12px">${policy.description}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:left">
+      <div>
+        <strong>Metric Effects</strong>
+        <table class="effect-table"><tbody>${mRows}</tbody></table>
+      </div>
+      <div>
+        <strong>Voter Approval</strong>
+        <table class="effect-table"><tbody>${vRows}</tbody></table>
+      </div>
+    </div>`;
 }
 
-export function createSVG(svgContainer, width, height) {
-  return d3.select(svgContainer)
-    .append("svg")
-    .attr("width", width)
-    .attr("height", height);
-}
-
-
-// Function to show details
-export function showDetails(gameState, item) {
-  const impactMatrix = ImpactFunctions.createImpactMatrix(gameState, item.id);
-  var deletionCost = 20;
+export function showEnactConfirm(gs, policy) {
+  const c = catColor(policy.category);
   Swal.fire({
-    title: item.name,
+    title: policy.name,
+    html: `${effectsHtml(policy)}
+      <p style="margin-top:16px;font-weight:600">
+        Cost: <span style="color:${c}">${policy.cost} credits</span>
+        &nbsp;·&nbsp; You have: ${gs.credits} credits
+      </p>`,
+    showCancelButton: true,
+    confirmButtonText: "Enact Policy",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: c,
+  }).then(result => {
+    if (!result.isConfirmed) return;
+    const ok = PolicyFunctions.enactPolicy(policy);
+    if (ok) {
+      Swal.fire({ icon: "success", title: "Policy Enacted", text: `${policy.name} is now in effect.`, timer: 1800, showConfirmButton: false });
+    } else {
+      Swal.fire({ icon: "error", title: "Insufficient Credits", text: `You need ${policy.cost} credits but only have ${gs.credits}.` });
+    }
+  });
+}
+
+export function showRepealConfirm(gs, policy) {
+  const repealCost = 20;
+  Swal.fire({
+    title: `Repeal: ${policy.name}`,
+    html: `<p>Repealing this policy will <strong>reverse its effects</strong> and cost <strong>${repealCost} credits</strong>.</p>
+           <p>You currently have <strong>${gs.credits} credits</strong>.</p>`,
+    showCancelButton: true,
+    confirmButtonText: "Repeal",
+    cancelButtonText: "Keep It",
+    confirmButtonColor: "#dc2626",
+  }).then(result => {
+    if (!result.isConfirmed) return;
+    const ok = PolicyFunctions.repealPolicy(policy, repealCost);
+    if (ok) {
+      Swal.fire({ icon: "success", title: "Policy Repealed", text: `${policy.name} has been repealed.`, timer: 1800, showConfirmButton: false });
+    } else {
+      Swal.fire({ icon: "error", title: "Insufficient Credits", text: `You need ${repealCost} credits to repeal a policy.` });
+    }
+  });
+}
+
+export function showPolicyDetails(gs, policy) {
+  const isEnacted = GameState.isEnacted(gs, policy.id);
+  const c = catColor(policy.category);
+  Swal.fire({
+    title: policy.name,
     html: `
-        <p>Description: ${item.description}</p>
-        ${ImpactFunctions.renderImpactMatrix(impactMatrix)}
-    `,
-    confirmButtonText: 'Close',
-    showCancelButton: item.type === 'policy',
-    cancelButtonText: 'Delete Policy ('+deletionCost+')'
-  }).then((result) => {
-    if (item.type === 'policy' && result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
-      PolicyFunctions.deletePolicy(gameState, item, deletionCost);
-    }
+      <div style="display:inline-block;padding:2px 10px;border-radius:12px;background:${c};color:#fff;font-size:13px;margin-bottom:12px">${policy.category}</div>
+      ${effectsHtml(policy)}
+      ${isEnacted ? `<p style="margin-top:12px;color:#10b981;font-weight:600">✓ Currently enacted</p>` : ""}`,
+    confirmButtonText: "Close",
+    confirmButtonColor: "#64748b",
   });
-}
-
-export function createDragBehavior(svg) {
-  let drag = d3.drag()
-    .on("start", function(event, d) {
-      d3.select(this).attr("stroke", "black").classed("node-dragging", true);;
-    })
-    .on("drag", function(event, d) {
-    	d.pos.x = d.x = event.x;
-      d.pos.y = d.y = event.y;
-    	d3.select(this)
-      	.attr("cx", d.x)
-        .attr("cy", d.y);
-        
-      updateLines(svg, d);
-      updateLabels(svg, d);
-    })
-    .on("end", function(event, d) {
-      d3.select(this).attr("stroke", null).classed("node-dragging", false);;
-    });
-  return drag;
-}
-
-export function calculateNodePositions(nodes) {
-  let uniqueCategories = Array.from(new Set(nodes.map(node => node.category)));
-  const centerX = 700; // Center X coordinate of the canvas
-  const centerY = 320; // Center Y coordinate of the canvas
-  const radius = Math.min(1500, 500) / 3; // Adjust the radius based on the canvas size
-
-  let categoryArcs = {};
-
-  uniqueCategories.forEach((category, index) => {
-    const anglePerCategory = 2 * Math.PI / uniqueCategories.length;
-    const startAngle = index * anglePerCategory;
-    const endAngle = (index + 1) * anglePerCategory;
-    const arc = d3.arc()
-      .innerRadius(radius - 20) // Adjust as needed
-      .outerRadius(radius)
-      .startAngle(startAngle)
-      .endAngle(endAngle);
-    categoryArcs[category] = arc;
-  });
-
-  nodes.forEach((node) => {
-    const category = node.category;
-    const arc = categoryArcs[category];
-    const angle = Math.random() * (arc.endAngle() - arc.startAngle()) + arc.startAngle();
-    const position = arc.centroid(angle);
-
-    const x = centerX + position[0] + Math.random() * 20; // Add random offset to X coordinate
-    const y = centerY + position[1] + Math.random() * 20; // Add random offset to Y coordinate
-
-    node.pos = {
-      x: x,
-      y: y,
-      fx: x, // Set initial position for dragging
-      fy: y
-    }; // Save the node's position
-
-    node.radius = node.type === 'state' ? node.value / 5 : 20; // Save the node's radius
-  });
-
-// Check for collisions and adjust positions
-  nodes.forEach((node, index) => {
-    const x = node.pos.x;
-    const y = node.pos.y;
-    const radius = node.radius;
-    const collision = checkCollision(nodes, node, x, y, radius);
-    if (collision) {
-      // Collision detected: Adjust position by moving the node towards or away from the center by at least the radius length
-      const category = node.category;
-      const arc = categoryArcs[category];
-      const angle = Math.random() * (arc.endAngle() - arc.startAngle()) + arc.startAngle();
-      const position = arc.centroid(angle);
-
-      const nodeX = centerX + position[0]; // X coordinate without random offset
-      const nodeY = centerY + position[1]; // Y coordinate without random offset
-
-      const dx = nodeX - centerX;
-      const dy = nodeY - centerY;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      const offsetX = (dx / distance) * 5 * radius; // Offset towards or away from the center in the X direction
-      const offsetY = (dy / distance) * 5 * radius; // Offset towards or away from the center in the Y direction
-
-      const newX = centerX + offsetX; // Adjusted X coordinate
-      const newY = centerY + offsetY; // Adjusted Y coordinate
-
-      node.pos.x = newX;
-      node.pos.y = newY;
-    }
-  });
-}
-
-function checkCollision(nodes, currentNode, x, y, radius) {
-  for (let i = 0; i < nodes.length; i++) {
-    const otherNode = nodes[i];
-    if (otherNode !== currentNode) {
-      const otherX = otherNode.pos.x;
-      const otherY = otherNode.pos.y;
-      const otherRadius = otherNode.radius;
-      const dx = otherX - x;
-      const dy = otherY - y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance < otherRadius + radius) {
-        return true; // Collision detected
-      }
-    }
-  }
-  return false; // No collision detected
-}
-
-
-export function updateLines(svg, d) {
-  svg.selectAll('.flowing-line')
-      .filter(function(lineData) {
-        return lineData.from === d.id;
-      })
-      .attr("x1", a => d.x)
-      .attr("y1", a => d.y);
-            
-  svg.selectAll('.flowing-line')
-      .filter(function(lineData) {
-        return lineData.to === d.id;
-      })
-      .attr("x2", a => d.x)
-      .attr("y2", a => d.y);
-}
-
-export function updateLabels(svg, d) {
-  svg.selectAll('.node-label') 
-      .filter(function(nodeData) {
-      	return nodeData && nodeData.id === d.id;
-      })
-      .attr("x", a => d.x)
-      .attr("y", a => d.y+30);
-}
-
-export function filterVoterNodes(gameState) {
-  return gameState.nodes.filter(node => node.type === "voter");
-}
-
-export function filterStateAndPolicyNodes(gameState) {
-  return gameState.nodes.filter(node => node.type !== "voter");
-}
-
-export function calculateVoterNodePositions(voterNodes) {
-  voterNodes.forEach((node, index) => {
-    const x = 50;
-    const y = 10 + index * 35;
-    const width = 140;
-    const height = 30;
-
-    node.pos = {
-      x: x+width-20,
-      y: y+height/2-2
-    };
-  });
-}
-
-export function drawVoterNodesAndLabels(svg, voterNodes, gameState) {
-  voterNodes.forEach((node, index) => {
-    const x = 50;
-    const y = 10 + index * 35;
-    const width = 140;
-    const height = 30;
-
-    svg.append("rect")
-      .attr("x", x)
-      .attr("y", y)
-      .attr("width", width)
-      .attr("height", height)
-      .style("fill", "lightgray")
-      .classed("node-rectangle", true)
-      .on("click", function() {
-        showDetails(gameState, node);
-      })
-      .on("mouseover", () => {
-        ImpactFunctions.showImpactStrength(node);
-		    // Adjust opacity of lines
-		    svg.selectAll(`.flowing-line`).attr('stroke-opacity', 0.2);
-		    svg.selectAll(`.line-${node.id}`).attr('stroke-opacity', 1);
-      })
-      .on("mouseout", () => {
-        ImpactFunctions.hideImpactStrength();
-		    // Reset opacity of lines
-		    svg.selectAll(`.flowing-line`).attr('stroke-opacity', function() {
-			    return d3.select(this).attr("data-default-opacity");
-			  });
-      })
-
-			// Draw the approval rating rectangle
-			let approvalColor;
-			if (node.finalApproval > 70) {
-			  approvalColor = "green";
-			} else if (node.finalApproval >= 30) {
-			  approvalColor = "orange";
-			} else {
-			  approvalColor = "red";
-			}
-
-			svg.append("rect")
-			  .attr("x", x)
-			  .attr("y", y)
-			  .attr("width", width * node.finalApproval / 100) // approval attribute is a percentage
-			  .attr("height", height)
-			  .style("fill", approvalColor)
-			  .style("opacity", 0.5) // make the rectangle semi-transparent
-			  .classed("approval-rating-rectangle", true)
-	      .on("click", function() {
-	        showDetails(gameState, node);
-	      })
-	      .on("mouseover", () => {
-	        ImpactFunctions.showImpactStrength(node);
-			    // Adjust opacity of lines
-			    svg.selectAll(`.flowing-line`).attr('stroke-opacity', 0.2);
-			    svg.selectAll(`.line-${node.id}`).attr('stroke-opacity', 1);
-	      })
-	      .on("mouseout", () => {
-	        ImpactFunctions.hideImpactStrength();
-			    // Reset opacity of lines
-			    svg.selectAll(`.flowing-line`).attr('stroke-opacity', function() {
-				    return d3.select(this).attr("data-default-opacity");
-				  });
-	      })
-
-	    // Draw the label
-	    svg.append("text")
-	      .attr("x", x + width / 2)
-	      .attr("y", y + height / 2)
-	      .attr("text-anchor", "middle")
-	      .attr("alignment-baseline", "middle")
-	      .text(node.name)
-	      .classed("node-label", true)
-	      .classed("node-label-voter", true);
-	  });
-}
-
-export function drawImpactLines(svg, gameState, groupedImpacts) {
-  for (let key in groupedImpacts) {
-    let impacts = groupedImpacts[key];
-    let node1 = gameState.nodes.find(node => node.id === impacts[0].from);
-    let node2 = gameState.nodes.find(node => node.id === impacts[0].to);
-
-		// Check if the nodes have positions
-    if (node1 && node2 && node1.pos && node2.pos) {
-	    // Calculate offset for parallel lines
-	    let dx = node2.pos.x - node1.pos.x;
-	    let dy = node2.pos.y - node1.pos.y;
-	    let len = Math.max(Math.sqrt(dx * dx + dy * dy), 0.0000001);
-	    let offset = 5;
-
-	    // Calculate offset vector
-	    let ox = (dy / len) * offset;
-	    let oy = -(dx / len) * offset;
-
-	    impacts.forEach((impact, index) => {
-	      // Calculate position of the line
-	      let posX = index === 0 ? 1 : -1;
-
-	      // Draw line
-	      let opacity = Math.abs(impact.impact) / 100; 
-	      let line = svg.append("line")
-	      	.datum(impact) // Bind the data to the line
-	        .attr("x1", node1.pos.x + posX * ox)
-	        .attr("y1", node1.pos.y + posX * oy)
-	        .attr("x2", node2.pos.x + posX * ox)
-	        .attr("y2", node2.pos.y + posX * oy)
-	        .attr("stroke", impact.impact > 0 ? "green" : "red")
-	        .attr("stroke-opacity", opacity+0.1) // make the line transparent
-	        .attr("data-default-opacity", opacity+0.1)
-	        .attr("stroke-width", 15)
-	        .attr("marker-end", "url(#triangle)")
-	        .attr("class", `line-${node1.id} line-${node2.id}`)
-	        .classed("flowing-line", true)
-
-	      // Calculate the number of gaps
-	      const lineLength = line.node().getTotalLength();
-	      const totalGaps = Math.floor(lineLength / 10); // Adjust the gap width as needed
-	      const gapLength = lineLength / totalGaps;
-	      const gapArray = Array.from({
-	        length: totalGaps
-	      }, (_, i) => `${gapLength} ${gapLength}`).join(" ");
-
-	      // Calculate the animation duration based on the impact value
-	      const animationDuration = Math.max(100 - Math.abs(impact.impact), 0); // Adjust the scaling factor as needed
-
-	      // Determine the direction of the line
-	      const isForward = impact.from === node1.id && impact.to === node2.id;
-
-
-	      // Set the animation properties
-	      line.style("animation-duration", `${animationDuration}s`)
-	        .style("animation-timing-function", "linear")
-	        .style("animation-iteration-count", "infinite")
-	        .style("animation-name", isForward ? "flowAnimationForwards" : "flowAnimationBackwards")
-	        .style("animation-fill-mode", "forwards");
-
-	      // Animate the gaps
-	      line.attr("stroke-dasharray", gapArray);
-
-	    });
-	  }
-  }
 }
