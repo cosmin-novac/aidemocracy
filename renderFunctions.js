@@ -36,6 +36,7 @@ const APPROVAL_BAR_MAX_WIDTH = 95;
 const APPROVAL_BAR_MIN_WIDTH = 40;
 const IMPACT_MAP_MIN_WIDTH = 820;
 const POLICY_LABEL_MAX_LENGTH = 22;
+const POLICY_LABEL_ELLIPSIS_OFFSET = 1;
 const POLICY_BY_ID = new Map(POLICIES.map(policy => [policy.id, policy]));
 const SEARCH_INDEX = POLICIES.map(policy => ({
   id: policy.id,
@@ -192,7 +193,7 @@ function renderImpactMap(gs) {
   const container = document.getElementById("svg-container");
   if (!container || typeof d3 === "undefined") return;
 
-  const width = Math.max(container.clientWidth || IMPACT_MAP_MIN_WIDTH, IMPACT_MAP_MIN_WIDTH);
+  const width = container.clientWidth || IMPACT_MAP_MIN_WIDTH;
   const height = container.clientHeight || 340;
   const centerX = width * 0.45;
   const centerY = height * 0.53;
@@ -341,7 +342,7 @@ function renderImpactMap(gs) {
     .attr("y", d => d.y - 13)
     .attr("text-anchor", "middle")
     .text(d => d.name.length > POLICY_LABEL_MAX_LENGTH
-      ? `${d.name.slice(0, POLICY_LABEL_MAX_LENGTH - 1)}…`
+    ? `${d.name.slice(0, POLICY_LABEL_MAX_LENGTH - POLICY_LABEL_ELLIPSIS_OFFSET)}…`
       : d.name);
 
   svg.selectAll(".voter-node")
