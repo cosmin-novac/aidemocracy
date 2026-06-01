@@ -1,6 +1,10 @@
 // policies.js — Curated policy catalog for AI Democracy
 
 // ── Metric definitions ────────────────────────────────────────────────────────
+// Each metric has a numeric `value` on a 0–200 scale where 100 is the neutral
+// baseline. Positive delta (value > 100) is good for metrics where
+// lowerIsBetter=false, and bad for metrics where lowerIsBetter=true.
+// Display shows the delta from 100 (e.g. +15 or −8) and a proportional bar.
 export const METRICS = [
   // Economy
   { id: "gdpGrowth",         name: "GDP Growth",           category: "Economy",       description: "Rate of economic growth and output.",                    value: 100, lowerIsBetter: false },

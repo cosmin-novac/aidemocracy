@@ -68,9 +68,13 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("do-load").addEventListener("click", () => {
           const name = document.getElementById("save-select").value;
           if (!name) return;
-          GameState.loadGame(name);
-          Swal.close();
-          Swal.fire({ icon: "success", title: "Loaded", text: `"${name}" loaded.`, timer: 1500, showConfirmButton: false });
+          try {
+            GameState.loadGame(name);
+            Swal.close();
+            Swal.fire({ icon: "success", title: "Loaded", text: `"${name}" loaded.`, timer: 1500, showConfirmButton: false });
+          } catch (err) {
+            Swal.fire({ icon: "error", title: "Load Failed", text: "Save data appears corrupted and could not be loaded." });
+          }
         });
 
         document.getElementById("do-new-game").addEventListener("click", () => {

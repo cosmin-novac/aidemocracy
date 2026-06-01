@@ -157,8 +157,6 @@ body {
 }
 
 /* ── Metrics panel ─────────────────────────────────────────────────────────── */
-#metrics-panel { }
-
 .metric-group { margin-bottom: 14px; }
 
 .metric-group-title {
@@ -430,8 +428,6 @@ body {
 }
 
 /* ── Social panel (right) ──────────────────────────────────────────────────── */
-#social-panel { }
-
 .voter-row {
   display: flex;
   flex-direction: column;
