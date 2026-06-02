@@ -46,22 +46,31 @@ export function generatePopulation(seed) {
   let cE = 0, cS = 0;
 
   for (let i = 0; i < size; i++) {
-    const econ = clamp(gauss() * 55, -100, 100);
-    const soc  = clamp(gauss() * 55, -100, 100);
+    // Latent leaning (broad-ish), used to decide which traits this person holds.
+    const le = clamp(gauss() * 50, -100, 100);
+    const ls = clamp(gauss() * 50, -100, 100);
     const traits = [];
+    let we = 0, ws = 0, wsum = 0;
     for (const t of TRAIT_IDS) {
       const { base, bias } = TRAIT_PREVALENCE[t];
       const a = COMPASS_ANCHORS[t];
-      const dx = econ - a.econ, dy = soc - a.soc;
+      const dx = le - a.econ, dy = ls - a.soc;
       const closeness = Math.exp(-(dx * dx + dy * dy) / (2 * SIGMA * SIGMA)); // 0..1
-      const prob = clamp(base * ((1 - bias) + bias * closeness * 2), 0, 0.98);
-      if (rng() < prob) {
-        traits.push(t);
-        traitMembers[t].push(i);
-        traitSum[t].e += econ; traitSum[t].s += soc;
-      }
+      // Lower floor than before so ideological traits really concentrate near their bloc.
+      const prob = clamp(base * ((1 - bias) * 0.55 + bias * closeness * 2), 0, 0.97);
+      if (rng() < prob) { traits.push(t); we += a.econ * bias; ws += a.soc * bias; wsum += bias; }
+    }
+    // Final compass position is pulled toward the blocs this person belongs to,
+    // weighted by how ideological those traits are — so e.g. the LGBTQ+ cluster
+    // actually sits left-libertarian rather than smeared across the centre.
+    let econ = le, soc = ls;
+    if (wsum > 0) {
+      const pull = Math.min(0.7, wsum * 0.45);
+      econ = clamp(le * (1 - pull) + (we / wsum) * pull + (rng() - 0.5) * 14, -100, 100);
+      soc  = clamp(ls * (1 - pull) + (ws / wsum) * pull + (rng() - 0.5) * 14, -100, 100);
     }
     individuals[i] = { econ, soc, traits };
+    for (const t of traits) { traitMembers[t].push(i); traitSum[t].e += econ; traitSum[t].s += soc; }
     cE += econ; cS += soc;
   }
 

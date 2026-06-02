@@ -92,11 +92,10 @@ function renderMetrics(gs) {
       const good = m.lowerIsBetter ? delta <= 0 : delta >= 0;
       const sign = delta >= 0 ? "+" : "";
       html += `<div class="metric-card" data-metric-id="${m.id}" title="${m.description} — click for trend">
-        <div class="metric-name">${m.name}</div>
-        <div class="metric-bar-wrap">
-          <div class="metric-bar"><div class="${good ? "bar-fill-good" : "bar-fill-bad"}" style="width:${bar}%"></div></div>
-          <span class="metric-value ${good ? "good" : "bad"}">${sign}${delta}</span>
-        </div></div>`;
+        <span class="metric-name">${m.name}</span>
+        <div class="metric-bar"><div class="${good ? "bar-fill-good" : "bar-fill-bad"}" style="width:${bar}%"></div></div>
+        <span class="metric-value ${good ? "good" : "bad"}">${sign}${delta}</span>
+      </div>`;
     }
     html += `</div>`;
   }
@@ -119,10 +118,8 @@ function renderVoterPanel(gs) {
     const sharePct = ((el.counts[id] / popSize) * 100).toFixed(0);
     return `<div class="voter-row" data-voter-id="${id}" title="${GROUP_META.get(id)?.description || ""} — click for detail (${sharePct}% of voters)">
       <span class="voter-name">${groupName(id)}</span>
-      <div class="voter-bar-wrap">
-        <div class="voter-bar"><div class="voter-fill ${cls}" style="width:${pct}%"></div></div>
-        <span class="voter-pct ${cls}">${pct}%</span>
-      </div>
+      <div class="voter-bar"><div class="voter-fill ${cls}" style="width:${pct}%"></div></div>
+      <span class="voter-pct ${cls}">${pct}%</span>
     </div>`;
   }).join("");
 }
@@ -349,16 +346,21 @@ function renderCompass(el, gs, { groupId = null } = {}) {
   const pop = GameState.getPopulation(gs);
   const gov = gs.gov;
   const W = 360, H = 360, pad = 26;
-  const x = d3.scaleLinear().domain([-100, 100]).range([pad, W - pad]);
-  const y = d3.scaleLinear().domain([-100, 100]).range([H - pad, pad]); // soc +100 (authoritarian) at top
+  const Z = 70;  // zoom: show the central ±70 of the ±100 compass so clusters read clearly
+  const x = d3.scaleLinear().domain([-Z, Z]).range([pad, W - pad]).clamp(true);
+  const y = d3.scaleLinear().domain([-Z, Z]).range([H - pad, pad]).clamp(true); // soc +Z (authoritarian) at top
   const svg = d3.select(el).html("").append("svg").attr("width", W).attr("height", H).attr("class", "compass-svg");
 
-  // density heatmap
-  const d = pop.density, cw = (W - 2 * pad) / d.bins, ch = (H - 2 * pad) / d.bins;
+  // density heatmap — mapped through the zoomed scale; cells outside the zoom are skipped
+  const d = pop.density;
+  const step = 200 / d.bins;                       // compass units per bin
+  const cellW = Math.abs(x(step) - x(0)), cellH = Math.abs(y(0) - y(step));
   for (let bx = 0; bx < d.bins; bx++) for (let by = 0; by < d.bins; by++) {
-    const c = d.grid[bx][by]; if (!c) continue;
-    svg.append("rect").attr("x", pad + bx * cw).attr("y", pad + (d.bins - 1 - by) * ch).attr("width", cw + 0.5).attr("height", ch + 0.5)
-      .attr("fill", "#3b82f6").attr("fill-opacity", 0.05 + 0.6 * (c / d.max));
+    const cnt = d.grid[bx][by]; if (!cnt) continue;
+    const ec = -100 + (bx + 0.5) * step, sc = -100 + (by + 0.5) * step;
+    if (ec < -Z || ec > Z || sc < -Z || sc > Z) continue;
+    svg.append("rect").attr("x", x(ec) - cellW / 2).attr("y", y(sc) - cellH / 2).attr("width", cellW + 0.5).attr("height", cellH + 0.5)
+      .attr("fill", "#3b82f6").attr("fill-opacity", 0.05 + 0.6 * (cnt / d.max));
   }
   // axes
   svg.append("line").attr("x1", x(0)).attr("x2", x(0)).attr("y1", pad).attr("y2", H - pad).attr("stroke", "#cbd5e1");
@@ -367,10 +369,10 @@ function renderCompass(el, gs, { groupId = null } = {}) {
   axText(pad, y(0) - 4, "start", "← Left"); axText(W - pad, y(0) - 4, "end", "Right →");
   axText(x(0) + 4, pad + 8, "start", "Authoritarian"); axText(x(0) + 4, H - pad - 2, "start", "Libertarian");
 
-  // Overton window (mainstream ~ centred on population, ±45)
+  // Overton window (mainstream ~ centred on population)
   const c = pop.centroid;
   svg.append("ellipse").attr("cx", x(c.econ)).attr("cy", y(c.soc))
-    .attr("rx", Math.abs(x(45) - x(0))).attr("ry", Math.abs(y(0) - y(45)))
+    .attr("rx", Math.abs(x(38) - x(0))).attr("ry", Math.abs(y(0) - y(38)))
     .attr("class", "compass-window");
 
   // group scatter + centroid

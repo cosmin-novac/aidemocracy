@@ -37,8 +37,14 @@ function reportToFacts(report) {
 
 async function narrateWithLLM(report, apiKey) {
   const facts = reportToFacts(report);
-  const res = await fetch(ENDPOINT, {
+  // Never let a slow/blocked request hang the round — abort after 9s and fall back.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 9000);
+  let res;
+  try {
+    res = await fetch(ENDPOINT, {
     method: "POST",
+    signal: controller.signal,
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: MODEL,
@@ -53,7 +59,10 @@ async function narrateWithLLM(report, apiKey) {
         { role: "user", content: facts },
       ],
     }),
-  });
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`OpenAI ${res.status}`);
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content?.trim();

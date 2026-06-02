@@ -148,8 +148,8 @@ body {
 .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
 
 .panel-header {
-  padding: 14px 16px 10px;
-  font-size: 12px;
+  padding: 8px 14px 6px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .08em;
@@ -161,26 +161,29 @@ body {
 .panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 8px 12px;
 }
 
-/* ── Metrics panel ─────────────────────────────────────────────────────────── */
-.metric-group { margin-bottom: 14px; }
+/* ── Metrics panel (compact, single-line rows) ─────────────────────────────── */
+.metric-group { margin-bottom: 6px; }
 
 .metric-group-title {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: .05em;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .metric-card {
-  padding: 5px 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 6px;
   margin: 0 -6px;
-  border-radius: 6px;
-  cursor: default;
+  border-radius: 5px;
+  cursor: pointer;
   transition: background .15s;
 }
 
@@ -188,24 +191,18 @@ body {
 .metric-card.flash-neg { background: #fee2e2; }
 
 .metric-name {
-  font-size: 12px;
+  flex: 0 0 84px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.metric-bar-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .metric-bar {
   flex: 1;
-  height: 5px;
+  height: 4px;
   background: var(--border);
   border-radius: 3px;
   overflow: hidden;
@@ -215,9 +212,9 @@ body {
 .bar-fill-bad  { height: 100%; background: var(--bad);  border-radius: 3px; transition: width .5s; }
 
 .metric-value {
-  font-size: 11px;
+  flex: 0 0 28px;
+  font-size: 10px;
   font-weight: 700;
-  min-width: 34px;
   text-align: right;
 }
 
@@ -492,26 +489,24 @@ body {
   .flow-line { animation: none; }
 }
 
-/* ── Social panel (right) ──────────────────────────────────────────────────── */
+/* ── Social panel (right, compact single-line rows) ────────────────────────── */
 .voter-row {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 6px;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 6px;
   margin: 0 -6px;
-  border-radius: 6px;
-  border-bottom: 1px solid var(--border);
-  cursor: default;
+  border-radius: 5px;
+  cursor: pointer;
   transition: background .15s;
 }
-
-.voter-row:last-child { border-bottom: none; }
 
 .voter-row.flash-pos { background: #dcfce7; }
 .voter-row.flash-neg { background: #fee2e2; }
 
 .voter-name {
-  font-size: 12px;
+  flex: 0 0 92px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -519,15 +514,9 @@ body {
   text-overflow: ellipsis;
 }
 
-.voter-bar-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .voter-bar {
   flex: 1;
-  height: 5px;
+  height: 4px;
   background: var(--border);
   border-radius: 3px;
   overflow: hidden;
@@ -544,9 +533,9 @@ body {
 .voter-bad  { background: var(--bad);   color: var(--bad);  }
 
 .voter-pct {
-  font-size: 11px;
+  flex: 0 0 28px;
+  font-size: 10px;
   font-weight: 700;
-  min-width: 30px;
   text-align: right;
 }
 

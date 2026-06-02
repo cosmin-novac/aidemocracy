@@ -47,9 +47,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     const report = GameState.endRound(gs);
     RenderFunctions.renderGameState(gs);
 
-    Swal.fire({ title: "Tallying the round…", html: "The press is filing its reports.", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    const { text } = await Narrator.narrateRound(report);
-    await RenderFunctions.showRoundReport(report, text);
+    // Only show a "tallying" spinner if an LLM call is actually going to happen;
+    // the deterministic fallback is instant, so skip it otherwise.
+    if (GameState.getApiKey()) {
+      Swal.fire({ title: "Tallying the round…", html: "The press is filing its reports.", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    }
+    let text;
+    try { ({ text } = await Narrator.narrateRound(report)); }
+    catch { text = ""; }
+    await RenderFunctions.showRoundReport(report, text || "The round passed.");
 
     if (report.election) await RenderFunctions.showElectionResult(report.election, GameState.getGoal(gs)?.title);
     endRoundBtn.disabled = !!GameState.gameState.gameOver;
