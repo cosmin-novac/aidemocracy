@@ -29,6 +29,7 @@ const SECTOR_WEIGHT_PER_POLICY = 0.55;
 
 let eventsBound = false;
 let overlayFrame = null;
+let fwRaf = null;
 
 // ── Main render ──────────────────────────────────────────────────────────────────
 export function renderGameState(gs) {
@@ -194,8 +195,10 @@ function renderPolicyWheel(gs) {
     const mid = (a0 + a1) / 2, topHalf = Math.cos(mid) >= 0, lr = radius * 0.9, pathId = `wheel-label-${i}`;
     defs.append("path").attr("id", pathId)
       .attr("d", topHalf ? arcPathD(cx, cy, lr, a0 + 0.04, a1 - 0.04, 1) : arcPathD(cx, cy, lr, a1 - 0.04, a0 + 0.04, 0));
+    // Anchor the label at the start of the arc so a shrinking sector clips the END
+    // of the word (IMMIG…) rather than eating the first letters (IGRAT).
     labelLayer.append("text").attr("class", "wheel-sector-label").attr("dy", topHalf ? "0.9em" : "-0.35em").style("fill", color)
-      .append("textPath").attr("href", `#${pathId}`).attr("startOffset", "50%").style("text-anchor", "middle").text(cat.toUpperCase());
+      .append("textPath").attr("href", `#${pathId}`).attr("startOffset", "4%").style("text-anchor", "start").text(cat.toUpperCase());
   });
 
   // Hub — click to add a policy
@@ -771,7 +774,9 @@ export function openBudget(gs) {
     html: `<div class="budget-summary">
         <span>Treasury: <strong class="${b.treasury >= 0 ? "good" : "bad"}">${b.treasury}M</strong></span>
         <span>Balance / quarter: <strong class="${b.net >= 0 ? "good" : "bad"}">${b.net >= 0 ? "+" : ""}${b.net}M</strong></span>
+        <span>Inflation: <strong class="${b.inflation > 4 ? "bad" : ""}">${b.inflation}%</strong></span>
       </div>
+      ${b.treasury < 0 ? `<p style="font-size:12px;color:#b91c1c;text-align:center;margin:0 0 8px">⚠ Debt accrues ${Math.round(SIM.INTEREST_RATE * 100)}% interest each quarter and stokes inflation — and the public sours faster the deeper you sink.</p>` : ""}
       <div id="budget-chart"></div>
       <div class="budget-grid">
         <div><h4 class="good">Income</h4><ul class="budget-list">${income.map(li).join("")}</ul></div>
@@ -842,10 +847,44 @@ export function showMandateDetail(gs) {
     confirmButtonText: "Close", confirmButtonColor: "#3b82f6",
   });
 }
+// ── Mandate-fulfilled celebration (fireworks) ───────────────────────────────────────
+function startFireworks(canvas) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d"); const W = canvas.width, H = canvas.height;
+  const colors = ["#f87171", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#f472b6"];
+  let parts = [], t = 0;
+  const burst = () => {
+    const x = Math.random() * W, y = Math.random() * H * 0.55 + 20;
+    const col = colors[Math.floor(Math.random() * colors.length)], n = 26 + Math.floor(Math.random() * 22);
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2, sp = 1.4 + Math.random() * 2.6; parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, col }); }
+  };
+  const frame = () => {
+    ctx.fillStyle = "rgba(11,16,38,0.28)"; ctx.fillRect(0, 0, W, H);
+    if (t++ % 13 === 0) burst();
+    for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.045; p.vx *= 0.99; p.life -= 0.012; ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, 2.3, 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalAlpha = 1; parts = parts.filter(p => p.life > 0);
+    fwRaf = requestAnimationFrame(frame);
+  };
+  burst(); frame();
+}
+function stopFireworks() { if (fwRaf) { cancelAnimationFrame(fwRaf); fwRaf = null; } }
+
+export function showMandateAchieved(goalTitle) {
+  return Swal.fire({
+    title: "🎆 Mandate Fulfilled!", width: 580,
+    html: `<canvas id="fw-canvas" width="540" height="220" style="display:block;width:100%;border-radius:10px"></canvas>
+      <p style="font-size:16px;margin:14px 0 4px">You delivered on your mandate — <strong>${goalTitle}</strong>.</p>
+      <p style="color:#64748b;font-size:13px">A landmark for your government. Hold your approval to re-election and the nation will hand you a bold new mandate.</p>`,
+    confirmButtonText: "🎉 Magnificent", confirmButtonColor: "#10b981",
+    didOpen: () => startFireworks(document.getElementById("fw-canvas")),
+    willClose: () => stopFireworks(),
+  });
+}
+
 export function showRoundReport(report, narrative) {
   const swing = report.approvalAfter - report.approvalBefore;
   const swingTxt = swing === 0 ? "no change" : `${swing > 0 ? "+" : ""}${swing}%`;
-  const eventsHtml = report.events.length ? `<div class="report-events">${report.events.map(e => `<div class="report-event"><strong>${e.title}</strong></div>`).join("")}</div>` : "";
+  const eventsHtml = report.events.length ? `<div class="report-events">${report.events.map(e => `<div class="report-event"><strong>${e.title}</strong>${e.seed ? `<span class="report-event-desc">${e.seed}</span>` : ""}</div>`).join("")}</div>` : "";
   const speechHtml = report.speeches && report.speeches.length ? `<p class="report-stat" style="text-align:center">🎤 Speeches: ${report.speeches.join(", ")}</p>` : "";
   const moversHtml = report.movers.length ? `<ul class="report-movers">${report.movers.map(moverLine).join("")}</ul>` : `<p style="color:#94a3b8;font-size:13px">The indicators barely budged.</p>`;
   return Swal.fire({
@@ -866,9 +905,16 @@ export function showRoundReport(report, narrative) {
 export function showElectionResult(election, goalTitle) {
   if (election.reElected) {
     return Swal.fire({
-      icon: "success", title: `Re-elected! (Term ${election.term + 1})`,
-      html: `<p>The nation has returned your government to power with <strong>${election.approval}% approval</strong>.</p>${election.goalAchieved ? `<p style="color:#10b981;font-weight:600">Your mandate "${goalTitle}" is fulfilled — a historic government.</p>` : `<p>Your mandate "${goalTitle}" remains unfinished. The work continues.</p>`}`,
-      confirmButtonText: "Begin the new term", confirmButtonColor: "#10b981",
+      title: `🎆 Re-elected! (Term ${election.term + 1})`, width: 560,
+      html: `<canvas id="fw-canvas" width="520" height="170" style="display:block;width:100%;border-radius:10px"></canvas>
+        ${election.newMandate
+          ? `<p style="margin:14px 0 0">The nation returns your government with <strong>${election.approval}% approval</strong> — and, your mandate fulfilled, entrusts you with a bold new one:</p>
+             <p style="font-weight:800;color:#3b82f6;font-size:17px;margin:10px 0 0">${election.newMandate}</p>`
+          : `<p style="margin:14px 0 0">The nation has returned your government to power with <strong>${election.approval}% approval</strong>.</p>
+             <p>Your mandate "${goalTitle}" remains unfinished. The work continues.</p>`}`,
+      confirmButtonText: election.newMandate ? "Accept the new mandate" : "Begin the new term", confirmButtonColor: "#10b981",
+      didOpen: () => startFireworks(document.getElementById("fw-canvas")),
+      willClose: () => stopFireworks(),
     });
   }
   return showGameOver(election, goalTitle);

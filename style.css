@@ -658,11 +658,13 @@ body.swal2-shown #impact-overlay { display: none; }
   padding: 12px 14px; margin-bottom: 14px;
 }
 
-.report-events { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; justify-content: center; }
+.report-events { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; text-align: left; }
 .report-event {
-  font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 12px;
+  font-size: 13px; padding: 6px 10px; border-radius: 8px;
   background: #fef3c7; color: #92400e; border: 1px solid #fde68a;
 }
+.report-event strong { display: block; }
+.report-event-desc { display: block; font-size: 12px; font-weight: 400; color: #78350f; margin-top: 2px; line-height: 1.4; }
 
 .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; text-align: left; }
 .report-grid h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 6px; }

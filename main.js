@@ -70,7 +70,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     catch { text = ""; }
     await RenderFunctions.showRoundReport(report, text || "The quarter passed.");
 
-    if (report.election) await RenderFunctions.showElectionResult(report.election, GameState.getGoal(gs)?.title);
+    // Mandate just fulfilled → celebration (report.goal is the achieved mandate's title)
+    if (report.goalNewlyAchieved) await RenderFunctions.showMandateAchieved(report.goal);
+
+    if (report.election) {
+      await RenderFunctions.showElectionResult(report.election, GameState.getGoal(gs)?.title);
+      // Re-elected with a fulfilled mandate → brief the player on their fresh mandate
+      if (report.election.newMandate) RenderFunctions.showMandateBriefing(GameState.gameState);
+    }
     endRoundBtn.disabled = !!GameState.gameState.gameOver;
   });
 

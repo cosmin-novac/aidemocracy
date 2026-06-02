@@ -191,6 +191,10 @@ function computeIndicatorTargets(gs) {
     const adj = Math.max(-32, Math.min(32, -gs.treasury * SIM.DEBT_FROM_TREASURY));
     targets.nationalDebt = clamp(targets.nationalDebt + adj);
   }
+  // Inflation eats into housing affordability (cost of living).
+  if (targets.housingAfford !== undefined && gs.inflation) {
+    targets.housingAfford = clamp(targets.housingAfford - Math.max(0, gs.inflation - SIM.INFLATION_BASE) * SIM.INFLATION_HOUSING_K);
+  }
   for (const link of INDICATOR_LINKS) {
     const src = byId.get(link.from);
     if (!src || targets[link.to] === undefined) continue;
@@ -389,9 +393,12 @@ export function budgetReport(gs) {
     const amount = policyFiscal(p, levelOf(gs, pid));
     if (amount) items.push({ id: pid, name: p.name, category: p.category, amount });
   }
+  // Interest on debt (negative treasury) — compounds quarter on quarter.
+  const interest = gs.treasury < 0 ? Math.round(gs.treasury * SIM.INTEREST_RATE) : 0;
+  if (interest) items.push({ id: "interest", name: "Debt interest", category: "Economy", amount: interest });
   const policyNet = items.reduce((s, i) => s + i.amount, 0);
   const net = baseRevenue + policyNet;
-  return { baseRevenue, items, policyNet, net, treasury: gs.treasury };
+  return { baseRevenue, items, policyNet, net, treasury: gs.treasury, interest, inflation: Math.round((gs.inflation ?? SIM.INFLATION_BASE) * 10) / 10 };
 }
 function applyBudget(gs) {
   const { net } = budgetReport(gs);
@@ -427,7 +434,7 @@ function buildInitialState(seed = Pop.randomSeed()) {
 
   const gs = {
     capital: start.capital ?? 100,
-    treasury: SIM.TREASURY_START, treasuryHistory: [SIM.TREASURY_START],
+    treasury: SIM.TREASURY_START, treasuryHistory: [SIM.TREASURY_START], inflation: SIM.INFLATION_BASE,
     currentRound: 1, term: 1, seed, metrics, enactedPolicyIds, enactedLevels,
     pendingEnacted: [], pendingSpeeches: [],
     gov: { econ: 0, soc: 0 }, mood: 0, cabinet, loyalty, hasSpoken: false, discontent: 0,
@@ -572,7 +579,14 @@ export function endRound(gs) {
   applyGovStep(gs, 1);
   gs.mood *= SIM.MOOD_DECAY;
 
-  const budgetNet = applyBudget(gs);   // treasury += revenue − spending
+  const budgetNet = applyBudget(gs);   // treasury += revenue − spending (incl. compounding interest)
+
+  // Inflation rises with debt and deficits; deep debt + high inflation sour the public faster and faster.
+  const debt = Math.max(0, -gs.treasury);
+  const infTarget = SIM.INFLATION_BASE + debt / 250 + Math.max(0, -budgetNet) / 15;
+  gs.inflation = (gs.inflation ?? SIM.INFLATION_BASE) + (infTarget - (gs.inflation ?? SIM.INFLATION_BASE)) * SIM.INFLATION_EASE;
+  gs.mood -= SIM.DEBT_MOOD_K * Math.pow(debt / 100, SIM.DEBT_MOOD_EXP);   // escalating debt dissatisfaction
+  gs.mood -= Math.max(0, gs.inflation - 3) * SIM.INFLATION_MOOD_K;        // cost-of-living anger
 
   for (const m of gs.metrics) { m.history.push(m.value); if (m.history.length > HISTORY_CAP) m.history.shift(); }
   recomputeElectorate(gs);
@@ -589,7 +603,19 @@ export function endRound(gs) {
     const approval = overallApproval(gs);
     const reElected = approval >= SIM.ELECTION_THRESHOLD;
     election = { term: gs.term, approval, reElected, goalAchieved: gs.goalAchieved, threshold: SIM.ELECTION_THRESHOLD };
-    if (reElected) gs.term += 1; else gs.gameOver = true;
+    if (reElected) {
+      gs.term += 1;
+      // Mandate fulfilled and re-elected → the nation hands you a fresh mandate; keep playing.
+      if (gs.goalAchieved) {
+        const others = GOALS.filter(g => g.id !== gs.goalId);
+        const ng = others[Math.floor(Math.random() * others.length)] || getGoal(gs);
+        gs.goalId = ng.id;
+        gs.goalAchieved = false;
+        election.newMandate = ng.title;
+      }
+    } else {
+      gs.gameOver = true;
+    }
   }
   report.election = election;
 
@@ -603,7 +629,7 @@ export function endRound(gs) {
 // ── Persistence ────────────────────────────────────────────────────────────────────
 function toRecord(gs) {
   return {
-    version: 3, seed: gs.seed, capital: gs.capital, treasury: gs.treasury, treasuryHistory: gs.treasuryHistory,
+    version: 3, seed: gs.seed, capital: gs.capital, treasury: gs.treasury, treasuryHistory: gs.treasuryHistory, inflation: gs.inflation,
     currentRound: gs.currentRound, term: gs.term,
     metrics: gs.metrics.map(m => ({ id: m.id, value: m.value, target: m.target, history: m.history })),
     enactedPolicyIds: gs.enactedPolicyIds, enactedLevels: gs.enactedLevels, gov: gs.gov, mood: gs.mood,
@@ -626,6 +652,7 @@ function fromRecord(rec) {
   for (const id of gs.enactedPolicyIds) if (!gs.enactedLevels[id]) gs.enactedLevels[id] = 1;
   gs.treasury = rec.treasury != null ? rec.treasury : SIM.TREASURY_START;
   gs.treasuryHistory = rec.treasuryHistory || [gs.treasury];
+  gs.inflation = rec.inflation != null ? rec.inflation : SIM.INFLATION_BASE;
   gs.gov = rec.gov || { econ: 0, soc: 0 };
   gs.mood = rec.mood || 0;
   for (const p of PORTFOLIOS) gs.cabinet[p.id] = (rec.cabinet && rec.cabinet[p.id]) || null;

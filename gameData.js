@@ -661,10 +661,19 @@ export const SIM = {
   LEVEL_CHANGE_COST: 8,        // capital to adjust an enacted policy's level
 
   TREASURY_START: 160,         // starting cash reserve (money, not capital)
-  BASE_REVENUE: 62,            // baseline tax take per round
+  BASE_REVENUE: 62,            // baseline tax take per quarter
   GDP_TAX_FACTOR: 0.9,         // extra revenue per point of GDP above 100
-  FISCAL_PER_DEBT: 0.7,        // money/round derived from a policy's nationalDebt effect (non-staged)
+  FISCAL_PER_DEBT: 0.7,        // money/quarter derived from a policy's nationalDebt effect (non-staged)
   DEBT_FROM_TREASURY: 0.03,    // how strongly a treasury surplus/deficit moves the debt indicator
+
+  // Debt has teeth: interest compounds, inflation rises, and the public sours faster the deeper you sink.
+  INTEREST_RATE: 0.05,         // quarterly interest charged on a negative treasury (compounds)
+  INFLATION_BASE: 2,           // baseline inflation %
+  INFLATION_EASE: 0.3,         // how fast inflation eases toward its target
+  INFLATION_HOUSING_K: 1.4,    // housing-affordability drag per point of inflation above baseline
+  INFLATION_MOOD_K: 0.9,       // mood hit per point of inflation above 3%
+  DEBT_MOOD_K: 0.35,           // dissatisfaction scale from debt
+  DEBT_MOOD_EXP: 1.6,          // …raised to this power of (debt/100) → escalates super-linearly
 
   SPEECH_BASE_GAIN: 8,         // base capital from a speech
   SPEECH_APPROVAL_FACTOR: 0.30,// + capital per approval point
