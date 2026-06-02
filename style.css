@@ -326,6 +326,18 @@ body {
   animation: flowAnimationForwards 8s linear infinite;
 }
 
+/* ── Event markers on the wheel ──────────────────────────────────────────────── */
+.wheel-event-marker { stroke-width: 2; }
+.wheel-event-marker.bad  { fill: #fef3c7; stroke: #d97706; }
+.wheel-event-marker.good { fill: #dcfce7; stroke: #16a34a; }
+.wheel-event-marker.ongoing { animation: eventPulse 2.4s ease-in-out infinite; }
+
+@keyframes eventPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) { .wheel-event-marker.ongoing { animation: none; } }
+
 /* ── Category browser modal ─────────────────────────────────────────────────── */
 .cat-search {
   width: 100%;
@@ -553,6 +565,17 @@ body {
 }
 
 #goal-banner:empty { display: none; }
+#goal-banner { cursor: pointer; }
+#goal-banner:hover { background: linear-gradient(90deg, #e0e7ff 0%, var(--surface) 60%); }
+
+/* Mandate detail modal */
+.briefing-situation { font-style: italic; color: #475569; background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 10px 12px; margin: 0 0 12px; text-align: left; }
+.mandate-detail { text-align: left; }
+.mandate-row { margin-bottom: 12px; }
+.mandate-row-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.mandate-bar { height: 8px; background: var(--border); border-radius: 5px; overflow: hidden; }
+.mandate-bar-fill { height: 100%; border-radius: 5px; background: var(--accent); transition: width .4s; }
+.mandate-bar-fill.met { background: var(--good); }
 
 .goal-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
 
@@ -657,6 +680,7 @@ body.swal2-shown #impact-overlay { display: none; }
 /* ── Catalog policy icon ─────────────────────────────────────────────────────── */
 .cat-policy-icon { flex-shrink: 0; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
 .cat-policy-icon svg { width: 26px; height: 26px; }
+.modal-icon { display: flex; justify-content: center; margin: 0 0 8px; }
 
 /* ── Political compass ───────────────────────────────────────────────────────── */
 .compass-svg { display: block; margin: 0 auto; background: var(--surface-2); border-radius: 10px; border: 1px solid var(--border); }

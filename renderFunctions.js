@@ -212,6 +212,43 @@ function renderPolicyWheel(gs) {
       labelLayer.append("text").attr("class", "wheel-policy-label").attr("x", pos.x).attr("y", pos.y + nodeR + 11).attr("text-anchor", "middle").text(truncate(policy.name));
     });
   });
+
+  // Active events pinned to their sector (outer ring)
+  const eventLayer = svg.append("g");
+  const evByCat = {};
+  for (const a of GameState.getActiveEvents(gs)) (evByCat[a.def.category] = evByCat[a.def.category] || []).push(a);
+  spans.forEach(({ cat, a0, a1 }) => {
+    const evs = evByCat[cat] || [];
+    evs.forEach((a, k) => {
+      const ang = a0 + ((k + 1) / (evs.length + 1)) * (a1 - a0);
+      const pos = polar(cx, cy, radius * 0.82, ang);
+      const good = a.def.tone === "good";
+      const color = good ? "#15803d" : "#b45309";
+      const g = eventLayer.append("g").attr("transform", `translate(${pos.x},${pos.y})`).style("cursor", "pointer");
+      g.append("circle").attr("r", 11).attr("class", `wheel-event-marker ${good ? "good" : "bad"} ${a.until ? "shock" : "ongoing"}`);
+      g.append("image").attr("href", iconDataUri(good ? "sparkles" : "alert", { stroke: color, sw: 2.2 }))
+        .attr("x", -8).attr("y", -8).attr("width", 16).attr("height", 16).style("pointer-events", "none");
+      g.on("click", () => showEventDetail(a.def));
+      g.append("title").text(`${a.def.title} — click for detail`);
+    });
+  });
+}
+
+export function showEventDetail(def) {
+  const good = def.tone === "good";
+  const color = good ? "#15803d" : "#b45309";
+  const eff = (def.pressure || def.indicators || []).map(p =>
+    `<span class="eff-tag ${p.delta >= 0 ? "pos" : "neg"}">${p.delta >= 0 ? "+" : ""}${p.delta} ${p.id}</span>`).join(" ");
+  Swal.fire({
+    title: def.title,
+    html: `<div class="modal-icon" style="color:${color}">${iconSvg(good ? "sparkles" : "alert", { size: 34, stroke: color })}</div>
+      <p style="color:#64748b">${def.desc || ""}</p>
+      <p style="font-size:13px;color:#475569">${def.kind === "ongoing"
+        ? "An ongoing situation — it keeps pressuring the nation each round until the underlying indicator recovers past its danger threshold."
+        : "A one-off shock to the nation this round."}</p>
+      ${eff ? `<div class="policy-effects" style="justify-content:center;margin-top:8px">${eff}</div>` : ""}`,
+    confirmButtonText: "Close", confirmButtonColor: "#64748b",
+  });
 }
 
 // ── Cross-screen impact links (overlay) ─────────────────────────────────────────────
@@ -566,8 +603,9 @@ function effectsHtml(policy) {
 export function showEnactConfirm(gs, policy) {
   const c = catColor(policy.category), cost = GameState.effectiveCost(gs, policy);
   Swal.fire({
-    title: `${iconSvg(iconNameFor(policy), { size: 22, stroke: c })} ${policy.name}`,
-    html: `${effectsHtml(policy)}<p style="margin-top:14px;font-weight:600">Cost: <span style="color:${c}">${cost} political capital</span> &nbsp;·&nbsp; You have: ${gs.capital}</p>`,
+    title: policy.name,
+    html: `<div class="modal-icon" style="color:${c}">${iconSvg(iconNameFor(policy), { size: 34, stroke: c })}</div>
+      ${effectsHtml(policy)}<p style="margin-top:14px;font-weight:600">Cost: <span style="color:${c}">${cost} political capital</span> &nbsp;·&nbsp; You have: ${gs.capital}</p>`,
     showCancelButton: true, confirmButtonText: "Enact Policy", cancelButtonText: "Cancel", confirmButtonColor: c,
   }).then(result => {
     if (!result.isConfirmed) return;
@@ -592,8 +630,9 @@ export function showRepealConfirm(gs, policy) {
 export function showPolicyDetails(gs, policy) {
   const isEnacted = GameState.isEnacted(gs, policy.id), c = catColor(policy.category);
   Swal.fire({
-    title: `${iconSvg(iconNameFor(policy), { size: 22, stroke: c })} ${policy.name}`,
-    html: `<div style="display:inline-block;padding:2px 10px;border-radius:12px;background:${c};color:#fff;font-size:13px;margin-bottom:12px">${policy.category}</div>${effectsHtml(policy)}${isEnacted ? `<p style="margin-top:12px;color:#10b981;font-weight:600">✓ Currently enacted</p>` : ""}`,
+    title: policy.name,
+    html: `<div class="modal-icon" style="color:${c}">${iconSvg(iconNameFor(policy), { size: 34, stroke: c })}</div>
+      <div style="display:inline-block;padding:2px 10px;border-radius:12px;background:${c};color:#fff;font-size:13px;margin-bottom:12px">${policy.category}</div>${effectsHtml(policy)}${isEnacted ? `<p style="margin-top:12px;color:#10b981;font-weight:600">✓ Currently enacted</p>` : ""}`,
     showCancelButton: true, confirmButtonText: isEnacted ? "Repeal (20)" : "Enact", confirmButtonColor: isEnacted ? "#dc2626" : c, cancelButtonText: "Close",
   }).then(result => { if (!result.isConfirmed) return; isEnacted ? showRepealConfirm(gs, policy) : showEnactConfirm(gs, policy); });
 }
@@ -607,14 +646,41 @@ function moverLine(m) {
 export function showMandateBriefing(gs) {
   const { goal, parts, requireApproval } = GameState.evalGoal(gs);
   if (!goal) return Promise.resolve();
-  const targetList = parts.map(p => `<li>${p.name}: ${p.dir === "high" ? "reach" : "bring down to"} <strong>${p.target}</strong></li>`).join("");
+  const narrative = GameState.getGoal(gs)?.start?.narrative;
+  const targetList = parts.map(p =>
+    `<li>${p.name}: ${p.dir === "high" ? "reach" : "bring down to"} <strong>${p.target}</strong>
+      <span style="color:#94a3b8">(now ${p.value})</span></li>`).join("");
   return Swal.fire({
     title: `Your Mandate: ${goal.title}`,
-    html: `<p style="color:#475569">${goal.description}</p>
-      <div style="text-align:left;margin:12px auto;max-width:400px"><strong>Targets to hit:</strong>
+    html: `${narrative ? `<p class="briefing-situation">${narrative}</p>` : ""}
+      <p style="color:#475569">${goal.description}</p>
+      <div style="text-align:left;margin:12px auto;max-width:420px"><strong>Targets to hit:</strong>
       <ul class="mandate-targets">${targetList}</ul>
-      <p style="font-size:13px;color:#64748b">You govern in <strong>${GameState.TERM_LENGTH}-round terms</strong>. At each election you must hold <strong>≥ ${requireApproval}% approval</strong> to stay in power. Achieve your mandate before you are voted out.</p></div>`,
+      <p style="font-size:13px;color:#64748b">You inherit a government already in motion — policies are in force and the indicators reflect the situation. You govern in <strong>${GameState.TERM_LENGTH}-round terms</strong>; hold <strong>≥ ${requireApproval}% approval</strong> at each election to stay in power.</p></div>`,
     confirmButtonText: "Take office", confirmButtonColor: "#3b82f6",
+  });
+}
+
+export function showMandateDetail(gs) {
+  const { goal, parts, approval, requireApproval, progress } = GameState.evalGoal(gs);
+  if (!goal) return;
+  const row = (name, valTxt, met, frac) =>
+    `<div class="mandate-row">
+      <div class="mandate-row-head"><span>${name}</span><span class="${met ? "good" : "bad"}">${valTxt} ${met ? "✓" : ""}</span></div>
+      <div class="mandate-bar"><div class="mandate-bar-fill ${met ? "met" : ""}" style="width:${Math.round(frac * 100)}%"></div></div>
+    </div>`;
+  const targetRows = parts.map(p =>
+    row(p.name, `${p.value} / ${p.dir === "high" ? "≥" : "≤"}${p.target}`, p.met, p.frac)).join("");
+  const apprMet = approval >= requireApproval;
+  Swal.fire({
+    title: `Mandate: ${goal.title}`, width: 520,
+    html: `<p style="color:#64748b;margin:0 0 12px">${goal.description}</p>
+      <div class="mandate-detail">
+        ${targetRows}
+        ${row("Public approval", `${approval}% / ≥${requireApproval}%`, apprMet, Math.min(1, approval / requireApproval))}
+      </div>
+      <p style="margin-top:14px;font-weight:700">Overall progress: ${Math.round(progress * 100)}%${gs.goalAchieved ? " · 🏆 achieved" : ""}</p>`,
+    confirmButtonText: "Close", confirmButtonColor: "#3b82f6",
   });
 }
 export function showRoundReport(report, narrative) {
@@ -670,6 +736,7 @@ export function setupPolicyEvents() {
     const row = e.target.closest(".voter-row");
     if (row?.dataset.voterId) showGroupDetail(GameState.gameState, row.dataset.voterId);
   });
+  document.getElementById("goal-banner")?.addEventListener("click", () => showMandateDetail(GameState.gameState));
   document.getElementById("metrics-list")?.addEventListener("scroll", scheduleOverlay, { passive: true });
   document.getElementById("voter-list")?.addEventListener("scroll", scheduleOverlay, { passive: true });
   window.addEventListener("resize", scheduleOverlay, { passive: true });

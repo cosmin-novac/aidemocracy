@@ -169,6 +169,12 @@ function computeIndicatorTargets(gs) {
     if (!src || targets[link.to] === undefined) continue;
     targets[link.to] += link.weight * (src.value - 100);
   }
+  // Ongoing events drag (or lift) their indicators while active.
+  for (const a of (gs.activeEvents || [])) {
+    const e = EVENT_BY_ID.get(a.id);
+    if (!e || e.kind !== "ongoing" || !e.pressure) continue;
+    for (const p of e.pressure) if (targets[p.id] !== undefined) targets[p.id] += p.delta;
+  }
   for (const id in targets) targets[id] = clamp(targets[id]);
   return targets;
 }
@@ -191,33 +197,69 @@ function applyGovStep(gs, frac = 1) {
 }
 
 // ── Events ───────────────────────────────────────────────────────────────────────
+const EVENT_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
+const HYST = 6;  // hysteresis so ongoing events don't flicker at the threshold
+
+export function eventDef(id) { return EVENT_BY_ID.get(id) || null; }
+/** Active events enriched with their definitions (for the wheel + detail modal). */
+export function getActiveEvents(gs) {
+  return (gs.activeEvents || []).map(a => ({ ...a, def: EVENT_BY_ID.get(a.id) })).filter(a => a.def);
+}
+
 function condMet(gs, cond) {
   const m = indicatorMap(gs).get(cond.id);
   if (!m) return false;
   return cond.dir === "low" ? m.value <= cond.value : m.value >= cond.value;
 }
+function condCleared(gs, cond) {
+  const m = indicatorMap(gs).get(cond.id);
+  if (!m) return true;
+  return cond.dir === "low" ? m.value > cond.value + HYST : m.value < cond.value - HYST;
+}
+function hasActive(gs, id) { return gs.activeEvents.some(a => a.id === id); }
 function weightedPick(list) {
   const total = list.reduce((s, e) => s + (e.weight || 1), 0);
   let r = Math.random() * total;
   for (const e of list) { r -= (e.weight || 1); if (r <= 0) return e; }
   return list[list.length - 1];
 }
-function fireEvent(gs, e) {
+function fireShock(gs, e) {
   const byId = indicatorMap(gs);
   for (const ind of e.indicators || []) { const m = byId.get(ind.id); if (m) m.value = clamp(m.value + ind.delta); }
-  if (e.approvalDelta) gs.mood += e.approvalDelta;       // event approval swing → national mood
+  if (e.mood) gs.mood += e.mood;
   if (e.credits) gs.capital = Math.max(0, gs.capital + e.credits);
+  gs.activeEvents.push({ id: e.id, until: gs.currentRound + 1 });  // visible for one round
 }
-function applyEvents(gs) {
+
+/** Turn ongoing situations on/off by threshold, fire shocks, drip mood, expire shocks. */
+function processEvents(gs) {
   const fired = [];
-  const eligible = EVENTS.filter(e => e.kind === "conditional" && condMet(gs, e.cond) && e.id !== gs.lastEventId);
-  if (eligible.length) { const e = weightedPick(eligible); fireEvent(gs, e); fired.push(e); }
-  if (Math.random() < SIM.EVENT_RANDOM_CHANCE) {
-    const randoms = EVENTS.filter(e => e.kind === "random" && e.id !== gs.lastEventId && !fired.includes(e));
-    if (randoms.length) { const e = weightedPick(randoms); fireEvent(gs, e); fired.push(e); }
+  // 1) Ongoing situations: activate when a threshold is crossed, clear when it recovers.
+  for (const e of EVENTS) {
+    if (e.kind !== "ongoing") continue;
+    const active = hasActive(gs, e.id);
+    if (!active && condMet(gs, e.cond)) {
+      gs.activeEvents.push({ id: e.id });
+      if (e.credits) gs.capital = Math.max(0, gs.capital + e.credits);
+      fired.push({ id: e.id, title: e.title, seed: e.onset || e.seed });
+    } else if (active && condCleared(gs, e.cond)) {
+      gs.activeEvents = gs.activeEvents.filter(a => a.id !== e.id);
+      if (e.clear) fired.push({ id: e.id, title: `${e.title} eases`, seed: e.clear });
+    }
   }
-  if (fired.length) gs.lastEventId = fired[fired.length - 1].id;
-  return fired.map(e => ({ id: e.id, title: e.title, seed: e.seed }));
+  // 2) Conditional shock
+  const condShocks = EVENTS.filter(e => e.kind === "shock" && e.cond && condMet(gs, e.cond) && e.id !== gs.lastEventId && !hasActive(gs, e.id));
+  if (condShocks.length) { const e = weightedPick(condShocks); fireShock(gs, e); fired.push({ id: e.id, title: e.title, seed: e.seed }); gs.lastEventId = e.id; }
+  // 3) Random shock
+  if (Math.random() < SIM.EVENT_RANDOM_CHANCE) {
+    const rnd = EVENTS.filter(e => e.kind === "shock" && !e.cond && e.id !== gs.lastEventId && !hasActive(gs, e.id));
+    if (rnd.length) { const e = weightedPick(rnd); fireShock(gs, e); fired.push({ id: e.id, title: e.title, seed: e.seed }); gs.lastEventId = e.id; }
+  }
+  // 4) Ongoing mood drip
+  for (const a of gs.activeEvents) { const e = EVENT_BY_ID.get(a.id); if (e && e.kind === "ongoing" && e.moodDrip) gs.mood += e.moodDrip; }
+  // 5) Expire spent shock markers
+  gs.activeEvents = gs.activeEvents.filter(a => !(a.until != null && a.until <= gs.currentRound));
+  return fired;
 }
 
 // ── Ministers: loyalty, resignations, scandals ─────────────────────────────────────
@@ -273,7 +315,7 @@ export function evalGoal(gs) {
     else { frac = (100 - m.value) / (100 - target); met = m.value <= target; }
     if (!met) allMet = false;
     sum += clamp01(frac);
-    parts.push({ id, name: m.name, dir, target, value: Math.round(m.value), met });
+    parts.push({ id, name: m.name, dir, target, value: Math.round(m.value), met, frac: clamp01(frac) });
   }
   const approval = overallApproval(gs);
   if (approval < goal.requireApproval) allMet = false;
@@ -295,28 +337,27 @@ export function projectIndicator(gs, id, rounds = 12) {
 // ── State init ──────────────────────────────────────────────────────────────────
 function buildInitialState(seed = Pop.randomSeed()) {
   const goal = GOALS[Math.floor(Math.random() * GOALS.length)];
+  const start = goal.start || {};
   const cabinet = {};
   for (const p of PORTFOLIOS) cabinet[p.id] = null;
-  return {
-    capital: 100,
-    currentRound: 1,
-    term: 1,
-    seed,
-    metrics: METRICS.map(m => ({ ...m, target: m.value, history: [m.value] })),
-    enactedPolicyIds: [],
-    pendingEnacted: [],
-    pendingSpeeches: [],
-    gov: { econ: 0, soc: 0 },
-    mood: 0,
-    cabinet,
-    loyalty: {},
-    hasSpoken: false,
-    goalId: goal.id,
-    goalAchieved: false,
-    gameOver: false,
-    lastEventId: null,
-    lastReport: null,
+
+  const metrics = METRICS.map(m => {
+    const v = (start.indicators && start.indicators[m.id] != null) ? start.indicators[m.id] : m.value;
+    return { ...m, value: v, target: v, history: [v] };
+  });
+  const enactedPolicyIds = (start.policies || []).slice();
+
+  const gs = {
+    capital: start.capital ?? 100,
+    currentRound: 1, term: 1, seed, metrics, enactedPolicyIds,
+    pendingEnacted: [], pendingSpeeches: [],
+    gov: { econ: 0, soc: 0 }, mood: 0, cabinet, loyalty: {}, hasSpoken: false,
+    activeEvents: (start.events || []).map(id => ({ id })),  // inherited ongoing situations
+    goalId: goal.id, goalAchieved: false, gameOver: false, lastEventId: null, lastReport: null,
   };
+  // Position the government's compass to match the policies it inherits.
+  gs.gov = Pop.governmentCompass(enactedPolicyIds.map(id => POLICY_BY_ID.get(id)).filter(Boolean));
+  return gs;
 }
 
 export let gameState = buildInitialState();
@@ -419,7 +460,7 @@ export function endRound(gs) {
   }
   gs.capital += Math.round(income);
 
-  const nationalEvents = applyEvents(gs);
+  const nationalEvents = processEvents(gs);
   const cabinetEvents = updateCabinet(gs, before.approval);
 
   applyIndicatorStep(gs, { frac: 1, drift: true });
@@ -457,6 +498,7 @@ function toRecord(gs) {
     metrics: gs.metrics.map(m => ({ id: m.id, value: m.value, target: m.target, history: m.history })),
     enactedPolicyIds: gs.enactedPolicyIds, gov: gs.gov, mood: gs.mood,
     cabinet: gs.cabinet, loyalty: gs.loyalty, hasSpoken: gs.hasSpoken,
+    activeEvents: gs.activeEvents,
     goalId: gs.goalId, goalAchieved: gs.goalAchieved, gameOver: gs.gameOver, lastEventId: gs.lastEventId,
   };
 }
@@ -474,6 +516,7 @@ function fromRecord(rec) {
   gs.mood = rec.mood || 0;
   for (const p of PORTFOLIOS) gs.cabinet[p.id] = (rec.cabinet && rec.cabinet[p.id]) || null;
   gs.loyalty = rec.loyalty || {};
+  gs.activeEvents = rec.activeEvents || [];
   gs.hasSpoken = !!rec.hasSpoken;
   gs.goalId = rec.goalId || gs.goalId;
   gs.goalAchieved = !!rec.goalAchieved;
