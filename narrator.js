@@ -20,6 +20,7 @@ function reportToFacts(report) {
   lines.push(`Round ${report.round} (term ${report.term}).`);
   if (report.enacted.length) lines.push(`Newly enacted: ${report.enacted.join(", ")}.`);
   else lines.push(`No new policies were enacted this round.`);
+  if (report.speeches && report.speeches.length) lines.push(`The leader gave speeches on: ${report.speeches.join(", ")}.`);
   if (report.events.length) lines.push(`Events: ${report.events.map(e => `${e.title} — ${e.seed}`).join(" ")}`);
   else lines.push(`No major events occurred.`);
   if (report.movers.length) lines.push(`Notable indicator shifts: ${report.movers.map(moverPhrase).join("; ")}.`);

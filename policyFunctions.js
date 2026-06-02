@@ -8,7 +8,7 @@ import * as RenderFunctions from './renderFunctions.js';
  */
 export function enactPolicy(policy) {
   const gs = GameState.gameState;
-  if (gs.credits < policy.cost) {
+  if (gs.capital < GameState.effectiveCost(gs, policy)) {
     return false;
   }
   GameState.enactPolicy(gs, policy);
@@ -22,7 +22,7 @@ export function enactPolicy(policy) {
  */
 export function repealPolicy(policy, repealCost = 20) {
   const gs = GameState.gameState;
-  if (gs.credits < repealCost) {
+  if (gs.capital < repealCost) {
     return false;
   }
   GameState.repealPolicy(gs, policy, repealCost);

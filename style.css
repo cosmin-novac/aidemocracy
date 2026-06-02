@@ -654,6 +654,54 @@ body.swal2-shown #impact-overlay { display: none; }
 
 #curve-chart svg { display: block; margin: 0 auto; background: var(--surface-2); border-radius: 8px; }
 
+/* ── Catalog policy icon ─────────────────────────────────────────────────────── */
+.cat-policy-icon { flex-shrink: 0; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
+.cat-policy-icon svg { width: 26px; height: 26px; }
+
+/* ── Political compass ───────────────────────────────────────────────────────── */
+.compass-svg { display: block; margin: 0 auto; background: var(--surface-2); border-radius: 10px; border: 1px solid var(--border); }
+.compass-window { fill: #10b981; fill-opacity: 0.08; stroke: #10b981; stroke-opacity: 0.4; stroke-dasharray: 4 4; }
+.compass-legend { font-size: 11px; color: var(--text-muted); text-align: center; margin: 8px 0 0; }
+.compass-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 2px -1px 8px; }
+.compass-legend .dot.you { background: #1d4ed8; }
+.compass-legend .dot.pop { background: #64748b; }
+.compass-legend .dot.grp { background: #f97316; }
+
+/* ── Group detail modal ──────────────────────────────────────────────────────── */
+.group-grid { display: grid; grid-template-columns: 1fr 360px; gap: 18px; text-align: left; align-items: start; }
+.group-reasons h4 { font-size: 13px; margin: 0 0 4px; }
+.reason-list { list-style: none; padding: 0; margin: 0; }
+.reason-list li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.reason-list li span:last-child { font-weight: 700; }
+.reason-empty { font-size: 13px; color: var(--text-muted); margin: 2px 0; }
+
+/* ── Cabinet modal ───────────────────────────────────────────────────────────── */
+.cabinet-list { text-align: left; max-height: 62vh; overflow-y: auto; }
+.portfolio-block { margin-bottom: 14px; }
+.portfolio-title { font-size: 13px; font-weight: 800; margin: 0 0 6px; }
+.portfolio-title span { font-weight: 500; color: var(--text-muted); font-size: 11px; }
+.minister-card { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; }
+.minister-card.seated { border-color: var(--good); background: #f0fdf4; }
+.minister-main { min-width: 0; }
+.minister-name { font-weight: 700; font-size: 13px; }
+.seated-badge { font-size: 11px; font-weight: 600; color: #15803d; }
+.minister-perks { font-size: 12px; color: var(--text-strong); margin-top: 2px; }
+.minister-bias { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.minister-act { flex-shrink: 0; }
+.minister-act button { min-width: 92px; }
+
+/* ── Speech modal ────────────────────────────────────────────────────────────── */
+.speech-list { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.speech-option { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; font-family: inherit; transition: border-color .15s, background .15s; }
+.speech-option:hover { border-color: var(--accent); background: var(--surface-2); }
+.speech-title { font-weight: 700; font-size: 14px; color: var(--text); }
+.speech-meta { font-size: 12px; color: var(--text-strong); }
+.speech-meta em { color: var(--accent-dark); font-style: normal; font-weight: 600; }
+.speech-groups { font-size: 11px; color: var(--text-muted); }
+
+/* ── Header icon buttons ─────────────────────────────────────────────────────── */
+.btn-icon svg { width: 19px; height: 19px; }
+
 /* ── Footer ────────────────────────────────────────────────────────────────── */
 #game-footer {
   height: var(--footer-h);
@@ -661,10 +709,33 @@ body.swal2-shown #impact-overlay { display: none; }
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px;
   flex-shrink: 0;
   box-shadow: 0 -1px 3px rgba(0,0,0,.04);
 }
+
+.footer-actions { display: flex; gap: 8px; flex: 1; }
+.footer-actions:last-child { justify-content: flex-end; }
+
+.footer-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-strong);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.footer-btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.footer-btn:active { transform: scale(.97); }
+.footer-btn.danger { color: #b91c1c; }
+.footer-btn.danger:hover { background: #fee2e2; border-color: #fca5a5; }
 
 #end-round {
   background: var(--accent);

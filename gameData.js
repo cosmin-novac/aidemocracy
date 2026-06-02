@@ -268,14 +268,128 @@ export const GOALS = [
     targets: [["publicHealth","high",140],["mentalHealth","high",135],["housingAfford","high",130]] },
 ];
 
+// ── Political compass anchors ───────────────────────────────────────────────────
+// Each voter trait sits somewhere on the 2D compass:
+//   econ: −100 (left) … +100 (right)   ·   soc: −100 (libertarian/progressive) … +100 (authoritarian/traditional)
+// An individual's traits pull their personal position toward these anchors, and a
+// policy's compass lean is derived from the anchors of the groups it pleases.
+export const COMPASS_ANCHORS = {
+  environmentalists:{econ:-40,soc:-50}, conservatives:{econ:45,soc:55}, progressives:{econ:-55,soc:-55},
+  youth:{econ:-25,soc:-40}, seniors:{econ:20,soc:35}, businessCommunity:{econ:65,soc:5},
+  workers:{econ:-45,soc:0}, urbanResidents:{econ:-20,soc:-30}, ruralResidents:{econ:25,soc:35},
+  minorities:{econ:-35,soc:-35}, healthcareWorkers:{econ:-25,soc:-15}, educators:{econ:-35,soc:-30},
+  farmers:{econ:20,soc:30}, veterans:{econ:25,soc:45}, parents:{econ:0,soc:10},
+  students:{econ:-40,soc:-45}, gigWorkers:{econ:-15,soc:-20}, smallBusinessOwners:{econ:45,soc:10},
+  techWorkers:{econ:10,soc:-30}, scientists:{econ:-20,soc:-35}, artists:{econ:-35,soc:-55},
+  religiousGroups:{econ:20,soc:65}, immigrants:{econ:-25,soc:-25}, lgbtqCommunity:{econ:-35,soc:-60},
+  disabledCommunity:{econ:-30,soc:-10}, renters:{econ:-35,soc:-20}, homeowners:{econ:35,soc:20},
+  motorists:{econ:20,soc:20}, cyclists:{econ:-25,soc:-35}, indigenousCommunities:{econ:-30,soc:-25},
+  civilServants:{econ:-10,soc:5}, taxpayers:{econ:55,soc:20},
+};
+
+// How common each trait is, and how strongly compass position gates membership.
+// `base` = baseline share of the population; `bias` (0–1) = how much an individual's
+// ideological distance from the trait anchor raises/lowers their chance of holding it.
+// High bias → ideological traits (progressives, religiousGroups…); low bias →
+// broad demographics (parents, motorists…). Traits overlap freely, so one person
+// can be e.g. an educator + farmer + progressive at once.
+export const TRAIT_PREVALENCE = {
+  workers:{base:0.45,bias:0.2}, parents:{base:0.35,bias:0.1}, taxpayers:{base:0.40,bias:0.6},
+  motorists:{base:0.45,bias:0.15}, homeowners:{base:0.35,bias:0.3}, renters:{base:0.30,bias:0.25},
+  urbanResidents:{base:0.40,bias:0.3}, ruralResidents:{base:0.28,bias:0.3}, seniors:{base:0.22,bias:0.2},
+  youth:{base:0.22,bias:0.3}, students:{base:0.13,bias:0.3}, conservatives:{base:0.30,bias:1.0},
+  progressives:{base:0.30,bias:1.0}, environmentalists:{base:0.24,bias:0.8}, businessCommunity:{base:0.12,bias:0.6},
+  smallBusinessOwners:{base:0.12,bias:0.4}, religiousGroups:{base:0.28,bias:0.9}, minorities:{base:0.20,bias:0.4},
+  immigrants:{base:0.12,bias:0.4}, educators:{base:0.08,bias:0.3}, healthcareWorkers:{base:0.08,bias:0.2},
+  techWorkers:{base:0.08,bias:0.3}, scientists:{base:0.05,bias:0.4}, artists:{base:0.06,bias:0.6},
+  civilServants:{base:0.08,bias:0.3}, farmers:{base:0.06,bias:0.3}, veterans:{base:0.08,bias:0.4},
+  gigWorkers:{base:0.10,bias:0.3}, disabledCommunity:{base:0.12,bias:0.1}, lgbtqCommunity:{base:0.08,bias:0.7},
+  cyclists:{base:0.12,bias:0.5}, indigenousCommunities:{base:0.04,bias:0.5},
+};
+
+// ── Cabinet ───────────────────────────────────────────────────────────────────────
+// Portfolios group policy categories; a seated minister boosts the effect of and
+// cuts the cost of policies in their portfolio.
+export const PORTFOLIOS = [
+  { id:"treasury",          name:"Treasury",            categories:["Economy","Taxation"] },
+  { id:"healthWelfare",     name:"Health & Welfare",    categories:["Healthcare","Welfare","Housing"] },
+  { id:"educationTech",     name:"Education & Tech",    categories:["Education","Technology"] },
+  { id:"environmentEnergy", name:"Environment & Energy",categories:["Environment","Energy","Transport"] },
+  { id:"justiceInterior",   name:"Justice & Interior",  categories:["Justice","Civil Liberties","Immigration"] },
+  { id:"foreignCivic",      name:"Foreign & Civic",     categories:["Foreign Policy","Civic","Labor"] },
+];
+
+// Candidate ministers. effectiveness multiplies their portfolio's policy pressure;
+// costReduction discounts those policies; capitalPerRound is passive income;
+// approvalBias nudges specific groups while they serve.
+function m(id, name, portfolio, econ, soc, capitalPerRound, costReduction, effectiveness, approvalBias) {
+  return { id, name, portfolio, econ, soc, capitalPerRound, costReduction, effectiveness, approvalBias };
+}
+export const MINISTERS = [
+  // Treasury
+  m("t_whitlock","Diane Whitlock","treasury", 50, 10, 5,0.15,1.20,[["businessCommunity",6],["taxpayers",5],["workers",-3]]),
+  m("t_bell","Marcus Bell","treasury", -40,-20, 3,0.10,1.25,[["workers",6],["progressives",5],["businessCommunity",-4]]),
+  m("t_anand","Priya Anand","treasury", 5, -5, 6,0.06,1.10,[["smallBusinessOwners",6],["techWorkers",3]]),
+  // Health & Welfare
+  m("h_ford","Dr. Lena Ford","healthWelfare", -30,-15, 4,0.15,1.25,[["healthcareWorkers",8],["seniors",5],["conservatives",-3]]),
+  m("h_reeves","Tom Reeves","healthWelfare", 20, 10, 6,0.18,1.05,[["taxpayers",5],["conservatives",4],["progressives",-3]]),
+  m("h_marin","Sofia Marin","healthWelfare", -20,-25, 3,0.10,1.22,[["disabledCommunity",8],["parents",5]]),
+  // Education & Tech
+  m("e_khan","Aisha Khan","educationTech", -25,-30, 4,0.15,1.25,[["educators",8],["students",6],["youth",4]]),
+  m("e_lang","Victor Lang","educationTech", 25,-10, 6,0.10,1.15,[["techWorkers",7],["businessCommunity",4]]),
+  m("e_pierce","Nora Pierce","educationTech", -5,-20, 4,0.12,1.18,[["scientists",7],["educators",4]]),
+  // Environment & Energy
+  m("v_solberg","Greta Solberg","environmentEnergy", -35,-40, 3,0.20,1.30,[["environmentalists",9],["cyclists",5],["motorists",-4]]),
+  m("v_boyd","Hank Boyd","environmentEnergy", 35, 15, 6,0.10,1.10,[["motorists",6],["ruralResidents",5],["environmentalists",-5]]),
+  m("v_lin","Mei Lin","environmentEnergy", -10,-20, 5,0.12,1.20,[["scientists",5],["youth",4]]),
+  // Justice & Interior
+  m("j_mendez","Carla Méndez","justiceInterior", -30,-35, 3,0.15,1.25,[["minorities",8],["progressives",5],["conservatives",-4]]),
+  m("j_sutton","Roy Sutton","justiceInterior", 30, 55, 5,0.12,1.15,[["conservatives",8],["veterans",6],["minorities",-6],["immigrants",-5]]),
+  m("j_cho","Elaine Cho","justiceInterior", 0,-10, 5,0.10,1.18,[["civilServants",5],["urbanResidents",4]]),
+  // Foreign & Civic
+  m("f_bahari","Idris Bahari","foreignCivic", -15,-20, 4,0.12,1.20,[["immigrants",6],["progressives",4]]),
+  m("f_hale","Margaret Hale","foreignCivic", 30, 35, 6,0.10,1.10,[["veterans",7],["conservatives",5]]),
+  m("f_okoro","Sam Okoro","foreignCivic", 0, 0, 7,0.08,1.05,[["workers",4],["ruralResidents",4]]),
+];
+
+// ── Speeches ───────────────────────────────────────────────────────────────────────
+// Each speech leans in a compass direction and rallies certain groups. Reward scales
+// with approval and how mainstream the message is; targeted groups get a mood bump.
+export const SPEECH_THEMES = [
+  { id:"prosperity", title:"Prosperity & Jobs",   dir:{econ:30,soc:0},    groups:["businessCommunity","workers","smallBusinessOwners"] },
+  { id:"fairness",   title:"Fairness & Equality", dir:{econ:-40,soc:-20}, groups:["progressives","workers","minorities"] },
+  { id:"order",      title:"Law & Order",         dir:{econ:10,soc:50},   groups:["conservatives","veterans","seniors"] },
+  { id:"green",      title:"A Green Future",       dir:{econ:-20,soc:-30}, groups:["environmentalists","youth","cyclists"] },
+  { id:"family",     title:"Family & Community",   dir:{econ:0,soc:20},    groups:["parents","religiousGroups","seniors"] },
+  { id:"freedom",    title:"Freedom & Rights",     dir:{econ:-10,soc:-50}, groups:["progressives","lgbtqCommunity","artists","youth"] },
+];
+
 // ── Tunable constants ───────────────────────────────────────────────────────────
 export const SIM = {
-  TERM_LENGTH: 16,            // rounds per electoral term
-  ELECTION_THRESHOLD: 50,     // min approval to be re-elected
-  ROUND_INCOME: 75,           // credits granted each round
-  VOTER_INERTIA: 0.25,        // how fast approval eases toward its target
-  VOTER_INDICATOR_SCALE: 0.5, // weight multiplier for indicator-driven approval
-  POLICY_SENTIMENT_SCALE: 0.40,// weight of a policy's direct voterEffects while enacted
-  EVENT_RANDOM_CHANCE: 0.55,  // chance per round of an extra random event
-  DRIFT: 1.5,                 // ± random noise applied to indicator targets each round
+  TERM_LENGTH: 16,             // rounds per electoral term
+  ELECTION_THRESHOLD: 50,      // min approval to be re-elected
+  POP_SIZE: 10000,             // simulated individual voters
+
+  CAPITAL_BASE_INCOME: 55,     // political capital granted each round
+  CAPITAL_BELOVED_FACTOR: 1.4, // extra capital per approval point above 50
+  APPOINT_COST: 35,            // cost to appoint a minister
+
+  SPEECH_BASE_GAIN: 8,         // base capital from a speech
+  SPEECH_APPROVAL_FACTOR: 0.30,// + capital per approval point
+  SPEECH_ALIGN_BONUS: 14,      // + capital when the message lands in the mainstream
+  SPEECH_MOOD: 4,              // national mood bump from a well-pitched speech
+
+  K_IDEO: 0.14,                // approval penalty per unit of compass distance
+  VOTER_INDICATOR_SCALE: 0.5,  // weight multiplier for indicator-driven approval
+  POLICY_SENTIMENT_SCALE: 0.35,// weight of a policy's direct voterEffects while enacted
+  GOV_INERTIA: 0.30,           // how fast the government's compass position eases
+  MOOD_DECAY: 0.5,             // fraction of national mood retained each round
+
+  LOYALTY_BASE: 72,            // a fresh minister's loyalty
+  LOYALTY_RESIGN: 28,          // resign below this
+  LOYALTY_DRIFT: 0.18,         // how fast loyalty eases toward its pressure each round
+  SCANDAL_CHANCE: 0.25,        // per-round chance of a minister scandal when corruption is high
+
+  EVENT_RANDOM_CHANCE: 0.55,   // chance per round of an extra random event
+  DRIFT: 1.5,                  // ± random noise applied to indicator targets each round
 };

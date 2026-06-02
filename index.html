@@ -26,14 +26,18 @@
 
     <div class="header-stats" id="game-stats" role="region" aria-label="Game statistics">
       <span class="stat-chip" id="stat-round"   aria-label="Current round">Round 1</span>
-      <span class="stat-chip" id="stat-credits" aria-label="Available credits">100 Credits</span>
+      <span class="stat-chip" id="stat-capital" aria-label="Political capital">100 Political Capital</span>
       <span class="stat-chip" id="stat-approval" aria-label="Overall approval">50% Approval</span>
       <span class="stat-chip" id="stat-enacted"  aria-label="Enacted policies">0 Policies</span>
     </div>
 
     <div class="header-actions">
-      <button class="btn-icon" id="info-btn"     title="How to play" aria-label="How to play">&#9432;</button>
-      <button class="btn-icon" id="settings-btn" title="Settings"    aria-label="Settings">&#9881;</button>
+      <button class="btn-icon" id="info-btn" title="How to play" aria-label="How to play">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.7" r="0.6" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button class="btn-icon" id="settings-btn" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
     </div>
   </header>
 
@@ -68,7 +72,15 @@
 
   <!-- ── Footer ─────────────────────────────────────────────────────────── -->
   <footer id="game-footer">
+    <div class="footer-actions">
+      <button id="give-speech" class="footer-btn" aria-label="Give a speech">🎤 Give Speech</button>
+      <button id="open-cabinet" class="footer-btn" aria-label="Open cabinet">🏛️ Cabinet</button>
+      <button id="open-overton" class="footer-btn" aria-label="View the Overton window">🧭 Overton</button>
+    </div>
     <button id="end-round" aria-label="End the current round">End Round →</button>
+    <div class="footer-actions">
+      <button id="restart-game" class="footer-btn danger" aria-label="Restart the game">↺ Restart</button>
+    </div>
   </footer>
 
   <script type="module" src="/main.js"></script>
