@@ -498,6 +498,125 @@ export const SPEECH_THEMES = [
   { id:"freedom",    title:"Freedom & Rights",     dir:{econ:-10,soc:-50}, groups:["progressives","lgbtqCommunity","artists","youth"] },
 ];
 
+// ── Staged policies ─────────────────────────────────────────────────────────────
+// Many policies aren't all-or-nothing — you choose how far to go. Each stage has a
+// flavourful name + description, a capital `cost` to enact at that level, a per-round
+// fiscal flow (`fiscal`: negative = spending, positive = revenue), and an `effect`
+// multiplier applied to the policy's base metric/voter effects. Policies not listed
+// here are simple on/off (one level). Money/round drives the deficit mechanic.
+export const POLICY_STAGES = {
+  // ── Energy & environment ──
+  renewableSubsidy: [
+    { name:"Wallbox grants",          desc:"Subsidise home EV chargers — a modest first step.",                 cost:12, fiscal:-5,  effect:0.40 },
+    { name:"+ Rooftop solar",         desc:"Add generous feed-in tariffs for household solar panels.",           cost:24, fiscal:-11, effect:0.75 },
+    { name:"+ EV & heat-pump rebates",desc:"Throw in rebates for electric cars and home heat pumps.",            cost:34, fiscal:-18, effect:1.05 },
+    { name:"+ Grid & storage overhaul",desc:"Rewire the nation with smart grids and grid-scale batteries.",      cost:48, fiscal:-27, effect:1.40 },
+  ],
+  evIncentives: [
+    { name:"Charging network",        desc:"Roll out public fast-charging points nationwide.",                   cost:14, fiscal:-8,  effect:0.50 },
+    { name:"+ Purchase rebates",      desc:"Add cash rebates for buying electric vehicles.",                     cost:26, fiscal:-16, effect:1.00 },
+  ],
+  homeInsulation: [
+    { name:"Low-income retrofit",     desc:"Insulate the draughtiest homes of the poorest households.",          cost:12, fiscal:-7,  effect:0.50 },
+    { name:"+ National retrofit",     desc:"A nationwide drive to insulate every ageing home.",                  cost:22, fiscal:-15, effect:1.00 },
+  ],
+  // ── Taxation (revenue) ──
+  carbonTax: [
+    { name:"Token levy",              desc:"A symbolic price on carbon to test the political waters.",           cost:10, fiscal:8,   effect:0.40 },
+    { name:"Moderate price",          desc:"A real carbon price that heavy industry starts to feel.",            cost:18, fiscal:16,  effect:0.75 },
+    { name:"Steep price + dividend",  desc:"A steep, rising carbon price, rebated to households as a dividend.",  cost:28, fiscal:26,  effect:1.15 },
+  ],
+  wealthTax: [
+    { name:"Top-1% levy",             desc:"A modest annual levy on the very richest.",                          cost:12, fiscal:10,  effect:0.45 },
+    { name:"Broader wealth tax",      desc:"Tax large fortunes more comprehensively.",                           cost:20, fiscal:20,  effect:0.85 },
+    { name:"Aggressive wealth tax",   desc:"A steep annual tax on great accumulated wealth.",                    cost:28, fiscal:32,  effect:1.20 },
+  ],
+  progressiveTaxReform: [
+    { name:"Tweak the top band",      desc:"Nudge up the highest income-tax bracket.",                           cost:12, fiscal:12,  effect:0.45 },
+    { name:"Steeper brackets",        desc:"Add steeper brackets for the highest earners.",                      cost:20, fiscal:24,  effect:0.85 },
+    { name:"Sweeping reform",         desc:"A thoroughly progressive overhaul of income tax.",                   cost:28, fiscal:38,  effect:1.20 },
+  ],
+  vatReduction: [
+    { name:"Scrap VAT on essentials", desc:"Zero-rate food, medicine, and energy bills.",                        cost:14, fiscal:-12, effect:0.50 },
+    { name:"+ Cut the standard rate", desc:"Lower the headline VAT rate across the board.",                      cost:24, fiscal:-24, effect:0.90 },
+  ],
+  // ── Economy & labour ──
+  universalBasicIncome: [
+    { name:"Regional pilot",          desc:"A small unconditional-income trial in a few regions.",               cost:20, fiscal:-12, effect:0.35 },
+    { name:"Partial income floor",    desc:"A modest monthly payment to every adult.",                           cost:38, fiscal:-30, effect:0.70 },
+    { name:"Full basic income",       desc:"A liveable, unconditional income for every citizen.",                cost:55, fiscal:-55, effect:1.10 },
+  ],
+  minimumWageIncrease: [
+    { name:"Cautious bump",           desc:"A careful rise just above inflation.",                               cost:10, fiscal:-1,  effect:0.40 },
+    { name:"Solid raise",             desc:"A meaningful raise toward a decent standard of living.",             cost:18, fiscal:-2,  effect:0.80 },
+    { name:"Bold hike",               desc:"A bold hike that reshapes the entire low-wage economy.",             cost:26, fiscal:-3,  effect:1.15 },
+  ],
+  livingWage: [
+    { name:"Public sector first",     desc:"Pay every public employee a real living wage.",                      cost:12, fiscal:-3,  effect:0.50 },
+    { name:"Economy-wide mandate",    desc:"Mandate a living wage across the whole economy.",                    cost:22, fiscal:-5,  effect:1.05 },
+  ],
+  // ── Welfare & housing ──
+  childBenefits: [
+    { name:"Targeted top-up",         desc:"Extra support for the lowest-income families.",                      cost:12, fiscal:-8,  effect:0.45 },
+    { name:"Universal allowance",     desc:"A monthly allowance for every child.",                               cost:24, fiscal:-18, effect:0.85 },
+    { name:"Generous family package", desc:"Generous payments plus free childcare for all.",                     cost:34, fiscal:-30, effect:1.20 },
+  ],
+  pensionReform: [
+    { name:"Protect the floor",       desc:"Guarantee a dignified minimum pension.",                             cost:18, fiscal:-12, effect:0.45 },
+    { name:"Triple-lock pensions",    desc:"Index pensions generously to wages and prices.",                     cost:32, fiscal:-26, effect:0.90 },
+  ],
+  housingBenefitExpansion: [
+    { name:"Raise the cap",           desc:"Lift the rent-support ceiling for tenants.",                         cost:14, fiscal:-10, effect:0.50 },
+    { name:"+ Broaden eligibility",   desc:"Extend rent support to many more households.",                       cost:26, fiscal:-20, effect:1.00 },
+  ],
+  affordableHousing: [
+    { name:"Pilot developments",      desc:"Fund a handful of flagship affordable estates.",                     cost:18, fiscal:-10, effect:0.40 },
+    { name:"National programme",      desc:"A sustained nationwide affordable-building drive.",                  cost:34, fiscal:-22, effect:0.80 },
+    { name:"Mass construction",       desc:"Hundreds of thousands of new homes a year.",                         cost:50, fiscal:-36, effect:1.25 },
+  ],
+  // ── Healthcare ──
+  universalHealthcare: [
+    { name:"Safety-net cover",        desc:"Public cover for the poorest citizens and all children.",            cost:24, fiscal:-14, effect:0.40 },
+    { name:"Broad public option",     desc:"A public insurer competing alongside private cover.",                cost:40, fiscal:-30, effect:0.75 },
+    { name:"Single-payer for all",    desc:"Comprehensive cradle-to-grave care for everyone.",                   cost:55, fiscal:-50, effect:1.15 },
+  ],
+  hospitalFunding: [
+    { name:"Stabilise budgets",       desc:"Plug the worst gaps and stop the bleeding.",                         cost:16, fiscal:-12, effect:0.45 },
+    { name:"+ Expand capacity",       desc:"More beds, staff, and equipment across the system.",                 cost:30, fiscal:-24, effect:0.90 },
+  ],
+  // ── Education ──
+  freeUniversityTuition: [
+    { name:"Means-tested grants",     desc:"Free tuition for low-income students.",                              cost:18, fiscal:-9,  effect:0.45 },
+    { name:"Tuition caps",            desc:"Cap and subsidise fees at every public university.",                 cost:30, fiscal:-18, effect:0.80 },
+    { name:"Universal free tuition",  desc:"Abolish tuition fees entirely.",                                     cost:42, fiscal:-28, effect:1.10 },
+  ],
+  schoolFundingIncrease: [
+    { name:"Target deprived areas",   desc:"Pour extra funds where they're needed most.",                        cost:16, fiscal:-12, effect:0.45 },
+    { name:"+ Across-the-board raise",desc:"Lift per-pupil funding in every school.",                            cost:30, fiscal:-24, effect:0.90 },
+  ],
+  // ── Transport ──
+  highSpeedRail: [
+    { name:"One flagship line",       desc:"Connect the two biggest cities with fast rail.",                     cost:24, fiscal:-12, effect:0.40 },
+    { name:"Core network",            desc:"Link all major cities by high-speed rail.",                          cost:42, fiscal:-24, effect:0.80 },
+    { name:"Nationwide network",      desc:"Fast rail reaching every region.",                                   cost:60, fiscal:-38, effect:1.30 },
+  ],
+  freePublicTransport: [
+    { name:"Free for young & old",    desc:"Free travel for students, youth, and pensioners.",                   cost:16, fiscal:-10, effect:0.45 },
+    { name:"Off-peak free travel",    desc:"Abolish fares outside the rush hour.",                               cost:26, fiscal:-20, effect:0.80 },
+    { name:"Fully free transit",      desc:"Scrap all fares on buses, trams, and metro.",                        cost:36, fiscal:-32, effect:1.15 },
+  ],
+  // ── Justice & foreign ──
+  militaryModernisation: [
+    { name:"Maintenance",             desc:"Keep existing forces equipped and ready.",                           cost:18, fiscal:-12, effect:0.40 },
+    { name:"Modernisation",           desc:"Procure new equipment and capabilities.",                            cost:34, fiscal:-26, effect:0.80 },
+    { name:"Full rearmament",         desc:"A sweeping military build-up.",                                       cost:50, fiscal:-44, effect:1.30 },
+  ],
+  internationalAid: [
+    { name:"0.3% of GDP",             desc:"A modest overseas-aid commitment.",                                  cost:10, fiscal:-8,  effect:0.50 },
+    { name:"0.7% of GDP",             desc:"Meet the international aid target in full.",                          cost:20, fiscal:-16, effect:1.00 },
+  ],
+};
+
 // ── Tunable constants ───────────────────────────────────────────────────────────
 export const SIM = {
   TERM_LENGTH: 16,             // rounds per electoral term
@@ -507,6 +626,13 @@ export const SIM = {
   CAPITAL_BASE_INCOME: 55,     // political capital granted each round
   CAPITAL_BELOVED_FACTOR: 1.4, // extra capital per approval point above 50
   APPOINT_COST: 35,            // cost to appoint a minister
+  LEVEL_CHANGE_COST: 8,        // capital to adjust an enacted policy's level
+
+  TREASURY_START: 160,         // starting cash reserve (money, not capital)
+  BASE_REVENUE: 62,            // baseline tax take per round
+  GDP_TAX_FACTOR: 0.9,         // extra revenue per point of GDP above 100
+  FISCAL_PER_DEBT: 0.7,        // money/round derived from a policy's nationalDebt effect (non-staged)
+  DEBT_FROM_TREASURY: 0.03,    // how strongly a treasury surplus/deficit moves the debt indicator
 
   SPEECH_BASE_GAIN: 8,         // base capital from a speech
   SPEECH_APPROVAL_FACTOR: 0.30,// + capital per approval point

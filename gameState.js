@@ -11,7 +11,7 @@
 import { METRICS, POLICIES } from './policies.js';
 import {
   INDICATOR_INERTIA, DEFAULT_INERTIA, INDICATOR_LINKS, EVENTS, GOALS, SIM,
-  VOTER_PROFILES, TRAIT_PREVALENCE, PORTFOLIOS, MINISTERS, SPEECH_THEMES,
+  VOTER_PROFILES, TRAIT_PREVALENCE, PORTFOLIOS, MINISTERS, SPEECH_THEMES, POLICY_STAGES,
 } from './gameData.js';
 import * as Pop from './population.js';
 import * as Store from './persistence.js';
@@ -22,6 +22,7 @@ const MINISTER_BY_ID = new Map(MINISTERS.map(m => [m.id, m]));
 const TRAIT_IDS = Object.keys(TRAIT_PREVALENCE);
 const HISTORY_CAP = 48;
 export const TERM_LENGTH = SIM.TERM_LENGTH;
+export const LEVEL_CHANGE_COST = SIM.LEVEL_CHANGE_COST;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 export function clamp(value, min = 0, max = 200) {
@@ -30,6 +31,25 @@ export function clamp(value, min = 0, max = 200) {
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const indicatorMap = gs => new Map(gs.metrics.map(m => [m.id, m]));
 const dist2D = (a, b) => Math.hypot(a.econ - b.econ, a.soc - b.soc);
+
+// ── Staged policies ─────────────────────────────────────────────────────────────
+export function stagesOf(policy) { return POLICY_STAGES[policy.id] || null; }
+export function maxLevel(policy) { const s = stagesOf(policy); return s ? s.length : 1; }
+export function levelOf(gs, id) { return (gs.enactedLevels && gs.enactedLevels[id]) || 1; }
+function effectScale(policy, level) { const s = stagesOf(policy); return s ? s[Math.min(level, s.length) - 1].effect : 1; }
+/** Per-round money flow (negative = spending, positive = revenue) for a policy at a level. */
+export function policyFiscal(policy, level) {
+  const s = stagesOf(policy);
+  if (s) return s[Math.min(level, s.length) - 1].fiscal;
+  const debt = (policy.metricEffects.find(e => e.id === "nationalDebt")?.change) || 0;
+  return Math.round(-debt * SIM.FISCAL_PER_DEBT);
+}
+/** Capital cost to first enact a policy at a level (after minister discount). */
+export function enactCapitalCost(gs, policy, level = 1) {
+  const s = stagesOf(policy);
+  const base = s ? s[Math.min(level, s.length) - 1].cost : policy.cost;
+  return Math.round(base * (1 - costReductionFor(gs, policy.category)));
+}
 
 // ── Module-level derived data (never persisted) ─────────────────────────────────
 let population = null;
@@ -99,8 +119,9 @@ function traitScores(gs) {
   for (const pid of gs.enactedPolicyIds) {
     const p = POLICY_BY_ID.get(pid);
     if (!p) continue;
+    const scale = effectScale(p, levelOf(gs, pid));
     for (const eff of p.voterEffects) {
-      if (policy[eff.id] !== undefined) policy[eff.id] += eff.change * SIM.POLICY_SENTIMENT_SCALE;
+      if (policy[eff.id] !== undefined) policy[eff.id] += eff.change * SIM.POLICY_SENTIMENT_SCALE * scale;
     }
   }
   const score = {};
@@ -159,10 +180,15 @@ function computeIndicatorTargets(gs) {
   for (const pid of gs.enactedPolicyIds) {
     const p = POLICY_BY_ID.get(pid);
     if (!p) continue;
-    const mult = eff[p.category] ?? 1;
+    const mult = (eff[p.category] ?? 1) * effectScale(p, levelOf(gs, pid));
     for (const e of p.metricEffects) {
       if (targets[e.id] !== undefined) targets[e.id] += e.change * mult;
     }
+  }
+  // Budget feedback: sustained deficits push national debt up; surpluses pull it down.
+  if (targets.nationalDebt !== undefined && gs.treasury != null) {
+    const adj = Math.max(-32, Math.min(32, -gs.treasury * SIM.DEBT_FROM_TREASURY));
+    targets.nationalDebt = clamp(targets.nationalDebt + adj);
   }
   for (const link of INDICATOR_LINKS) {
     const src = byId.get(link.from);
@@ -334,6 +360,29 @@ export function projectIndicator(gs, id, rounds = 12) {
   return { history: m.history.slice(-HISTORY_CAP), future, target, current: m.value };
 }
 
+// ── Budget / deficit ──────────────────────────────────────────────────────────────
+/** Itemised per-round budget: baseline tax revenue + each policy's money flow. */
+export function budgetReport(gs) {
+  const gdp = indicatorMap(gs).get("gdpGrowth")?.value ?? 100;
+  const baseRevenue = Math.round(SIM.BASE_REVENUE + (gdp - 100) * SIM.GDP_TAX_FACTOR);
+  const items = [];
+  for (const pid of gs.enactedPolicyIds) {
+    const p = POLICY_BY_ID.get(pid); if (!p) continue;
+    const amount = policyFiscal(p, levelOf(gs, pid));
+    if (amount) items.push({ id: pid, name: p.name, category: p.category, amount });
+  }
+  const policyNet = items.reduce((s, i) => s + i.amount, 0);
+  const net = baseRevenue + policyNet;
+  return { baseRevenue, items, policyNet, net, treasury: gs.treasury };
+}
+function applyBudget(gs) {
+  const { net } = budgetReport(gs);
+  gs.treasury = Math.round(gs.treasury + net);
+  gs.treasuryHistory.push(gs.treasury);
+  if (gs.treasuryHistory.length > HISTORY_CAP) gs.treasuryHistory.shift();
+  return net;
+}
+
 // ── State init ──────────────────────────────────────────────────────────────────
 function buildInitialState(seed = Pop.randomSeed()) {
   const goal = GOALS[Math.floor(Math.random() * GOALS.length)];
@@ -345,11 +394,18 @@ function buildInitialState(seed = Pop.randomSeed()) {
     const v = (start.indicators && start.indicators[m.id] != null) ? start.indicators[m.id] : m.value;
     return { ...m, value: v, target: v, history: [v] };
   });
-  const enactedPolicyIds = (start.policies || []).slice();
+  // start.policies entries may be "id" (level 1) or ["id", level]
+  const enactedPolicyIds = [];
+  const enactedLevels = {};
+  for (const entry of (start.policies || [])) {
+    const [id, lvl] = Array.isArray(entry) ? entry : [entry, 1];
+    enactedPolicyIds.push(id); enactedLevels[id] = lvl;
+  }
 
   const gs = {
     capital: start.capital ?? 100,
-    currentRound: 1, term: 1, seed, metrics, enactedPolicyIds,
+    treasury: SIM.TREASURY_START, treasuryHistory: [SIM.TREASURY_START],
+    currentRound: 1, term: 1, seed, metrics, enactedPolicyIds, enactedLevels,
     pendingEnacted: [], pendingSpeeches: [],
     gov: { econ: 0, soc: 0 }, mood: 0, cabinet, loyalty: {}, hasSpoken: false,
     activeEvents: (start.events || []).map(id => ({ id })),  // inherited ongoing situations
@@ -425,22 +481,31 @@ export function dismissMinister(gs, portfolioId) {
 }
 
 // ── State mutations ───────────────────────────────────────────────────────────────
-export function enactPolicy(gs, policy) {
-  gs.capital -= effectiveCost(gs, policy);
-  gs.enactedPolicyIds.push(policy.id);
-  gs.pendingEnacted.push(policy.id);
+function afterPolicyChange(gs) {
   applyIndicatorStep(gs, { frac: 0.5 });
   applyGovStep(gs, 0.5);
   recomputeElectorate(gs);
   persist(gs);
 }
+export function enactPolicy(gs, policy, level = 1) {
+  gs.capital -= enactCapitalCost(gs, policy, level);
+  gs.enactedPolicyIds.push(policy.id);
+  gs.enactedLevels[policy.id] = level;
+  gs.pendingEnacted.push(policy.id);
+  afterPolicyChange(gs);
+}
+/** Adjust an already-enacted policy's level (cheaper than enacting). */
+export function setPolicyLevel(gs, policy, level) {
+  if (!gs.enactedPolicyIds.includes(policy.id)) return enactPolicy(gs, policy, level);
+  gs.capital -= SIM.LEVEL_CHANGE_COST;
+  gs.enactedLevels[policy.id] = level;
+  afterPolicyChange(gs);
+}
 export function repealPolicy(gs, policy, repealCost = 20) {
   gs.capital -= repealCost;
   gs.enactedPolicyIds = gs.enactedPolicyIds.filter(id => id !== policy.id);
-  applyIndicatorStep(gs, { frac: 0.5 });
-  applyGovStep(gs, 0.5);
-  recomputeElectorate(gs);
-  persist(gs);
+  delete gs.enactedLevels[policy.id];
+  afterPolicyChange(gs);
 }
 
 export function endRound(gs) {
@@ -467,6 +532,8 @@ export function endRound(gs) {
   applyGovStep(gs, 1);
   gs.mood *= SIM.MOOD_DECAY;
 
+  const budgetNet = applyBudget(gs);   // treasury += revenue − spending
+
   for (const m of gs.metrics) { m.history.push(m.value); if (m.history.length > HISTORY_CAP) m.history.shift(); }
   recomputeElectorate(gs);
 
@@ -474,6 +541,8 @@ export function endRound(gs) {
   const goalNewlyAchieved = met && !gs.goalAchieved ? (gs.goalAchieved = true, true) : false;
 
   const report = buildReport(gs, before, [...nationalEvents, ...cabinetEvents], goalNewlyAchieved);
+  report.treasury = gs.treasury;
+  report.budgetNet = budgetNet;
 
   let election = null;
   if (gs.currentRound % SIM.TERM_LENGTH === 0 && !gs.gameOver) {
@@ -494,9 +563,10 @@ export function endRound(gs) {
 // ── Persistence ────────────────────────────────────────────────────────────────────
 function toRecord(gs) {
   return {
-    version: 2, seed: gs.seed, capital: gs.capital, currentRound: gs.currentRound, term: gs.term,
+    version: 3, seed: gs.seed, capital: gs.capital, treasury: gs.treasury, treasuryHistory: gs.treasuryHistory,
+    currentRound: gs.currentRound, term: gs.term,
     metrics: gs.metrics.map(m => ({ id: m.id, value: m.value, target: m.target, history: m.history })),
-    enactedPolicyIds: gs.enactedPolicyIds, gov: gs.gov, mood: gs.mood,
+    enactedPolicyIds: gs.enactedPolicyIds, enactedLevels: gs.enactedLevels, gov: gs.gov, mood: gs.mood,
     cabinet: gs.cabinet, loyalty: gs.loyalty, hasSpoken: gs.hasSpoken,
     activeEvents: gs.activeEvents,
     goalId: gs.goalId, goalAchieved: gs.goalAchieved, gameOver: gs.gameOver, lastEventId: gs.lastEventId,
@@ -512,6 +582,10 @@ function fromRecord(rec) {
              : { ...m, target: m.value, history: [m.value] };
   });
   gs.enactedPolicyIds = rec.enactedPolicyIds || [];
+  gs.enactedLevels = rec.enactedLevels || {};
+  for (const id of gs.enactedPolicyIds) if (!gs.enactedLevels[id]) gs.enactedLevels[id] = 1;
+  gs.treasury = rec.treasury != null ? rec.treasury : SIM.TREASURY_START;
+  gs.treasuryHistory = rec.treasuryHistory || [gs.treasury];
   gs.gov = rec.gov || { econ: 0, soc: 0 };
   gs.mood = rec.mood || 0;
   for (const p of PORTFOLIOS) gs.cabinet[p.id] = (rec.cabinet && rec.cabinet[p.id]) || null;

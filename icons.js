@@ -83,6 +83,12 @@ const ICONS = {
   ballotCheck:`<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l2 2 4-4"/><line x1="8" y1="15" x2="16" y2="15"/>`,
   megaphone:`<path d="M4 10v4l11 4V6z"/><path d="M15 8.5a3 3 0 0 1 0 7"/><line x1="6" y1="14.5" x2="7" y2="20"/>`,
   broadcast:`<circle cx="12" cy="12" r="2"/><path d="M8 8a6 6 0 0 0 0 8M16 8a6 6 0 0 1 0 8M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/>`,
+  // ── UI / actions ──
+  plus:     `<circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>`,
+  columns:  `<path d="M3 21h18M4 9l8-5 8 5"/><line x1="6" y1="9" x2="6" y2="21"/><line x1="10" y1="9" x2="10" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="18" y1="9" x2="18" y2="21"/>`,
+  compass:  `<circle cx="12" cy="12" r="9"/><path d="M15.6 8.4l-2.1 5.1-5.1 2.1 2.1-5.1z"/>`,
+  barChart: `<line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="11" width="3" height="8"/><rect x="11" y="6" width="3" height="13"/><rect x="16" y="14" width="3" height="5"/>`,
+  refresh:  `<path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 4 21 9 16 9"/>`,
   // ── Events ──
   alert:    `<path d="M12 3l9.5 16.5H2.5z"/><line x1="12" y1="9.5" x2="12" y2="14.5"/><circle cx="12" cy="17.6" r="0.6" fill="currentColor" stroke="none"/>`,
   sparkles: `<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18.5 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/>`,

@@ -23,10 +23,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ── Footer actions ───────────────────────────────────────────────────────────
+  document.getElementById("add-policy-btn").addEventListener("click", () => RenderFunctions.openPolicyCatalog(GameState.gameState));
   document.getElementById("give-speech").addEventListener("click", () => RenderFunctions.showSpeechMenu(GameState.gameState));
   document.getElementById("open-cabinet").addEventListener("click", () => RenderFunctions.showCabinet(GameState.gameState));
+  document.getElementById("open-budget").addEventListener("click", () => RenderFunctions.openBudget(GameState.gameState));
   document.getElementById("open-overton").addEventListener("click", () => RenderFunctions.showOverton(GameState.gameState));
-  document.getElementById("restart-game").addEventListener("click", () => {
+
+  function confirmRestart() {
     Swal.fire({
       title: "Restart the game?", text: "Your current government and autosave will be wiped.", icon: "warning",
       showCancelButton: true, confirmButtonText: "Yes, restart", confirmButtonColor: "#dc2626",
@@ -36,7 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       endRoundBtn.disabled = false;
       RenderFunctions.showMandateBriefing(GameState.gameState);
     });
-  });
+  }
 
   // ── End Round ─────────────────────────────────────────────────────────────────
   endRoundBtn.addEventListener("click", async () => {
@@ -81,12 +84,16 @@ document.addEventListener("DOMContentLoaded", async () => {
               <button id="do-save" class="swal2-confirm swal2-styled" style="margin:0;min-width:80px">Save</button>
             </div>
           </div>
-          <div>
+          <div style="margin-bottom:16px">
             <label style="font-weight:600;display:block;margin-bottom:6px">Load Game</label>
             <div style="display:flex;gap:8px">
               <select id="save-select" class="swal2-input" style="margin:0;flex:1">${saveOptions}</select>
               <button id="do-load" class="swal2-confirm swal2-styled" style="margin:0;min-width:80px" ${!saves.length ? "disabled" : ""}>Load</button>
             </div>
+          </div>
+          <div>
+            <label style="font-weight:600;display:block;margin-bottom:6px">New Game</label>
+            <button id="do-restart" class="swal2-cancel swal2-styled" style="margin:0;width:100%">Restart with a fresh mandate</button>
           </div>
         </div>`,
       showConfirmButton: true, confirmButtonText: "Done",
@@ -106,6 +113,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           endRoundBtn.disabled = !!GameState.gameState.gameOver;
           Swal.fire({ icon: "success", title: "Loaded", text: `"${name}" loaded.`, timer: 1400, showConfirmButton: false });
         });
+        document.getElementById("do-restart").addEventListener("click", () => { Swal.close(); confirmRestart(); });
       },
     });
   });

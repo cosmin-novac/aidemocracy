@@ -27,6 +27,7 @@
     <div class="header-stats" id="game-stats" role="region" aria-label="Game statistics">
       <span class="stat-chip" id="stat-round"   aria-label="Current round">Round 1</span>
       <span class="stat-chip" id="stat-capital" aria-label="Political capital">100 Political Capital</span>
+      <span class="stat-chip" id="stat-treasury" aria-label="National treasury">160M Treasury</span>
       <span class="stat-chip" id="stat-approval" aria-label="Overall approval">50% Approval</span>
       <span class="stat-chip" id="stat-enacted"  aria-label="Enacted policies">0 Policies</span>
     </div>
@@ -56,8 +57,7 @@
     <!-- Centre: Policy wheel -->
     <section id="policy-wheel-section" aria-label="Policy wheel">
       <div class="wheel-toolbar">
-        <span class="wheel-hint">Click a sector to browse &amp; enact its policies · click a node for details</span>
-        <button id="browse-all" class="wheel-btn" aria-label="Browse and add policies">+ Add Policy</button>
+        <span class="wheel-hint">Click the centre or “Add Policy” to govern · click a node to set its level · click a sector to browse</span>
       </div>
       <div id="svg-container" aria-label="Policy category wheel"></div>
     </section>
@@ -73,14 +73,18 @@
   <!-- ── Footer ─────────────────────────────────────────────────────────── -->
   <footer id="game-footer">
     <div class="footer-actions">
-      <button id="give-speech" class="footer-btn" aria-label="Give a speech">🎤 Give Speech</button>
-      <button id="open-cabinet" class="footer-btn" aria-label="Open cabinet">🏛️ Cabinet</button>
-      <button id="open-overton" class="footer-btn" aria-label="View the Overton window">🧭 Overton</button>
+      <button id="add-policy-btn" class="footer-btn" aria-label="Add a policy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Add Policy</button>
+      <button id="give-speech" class="footer-btn" aria-label="Give a speech">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4l11 4V6z"/><path d="M15 8.5a3 3 0 0 1 0 7"/><line x1="6" y1="14.5" x2="7" y2="20"/></svg>Speech</button>
+      <button id="open-cabinet" class="footer-btn" aria-label="Open cabinet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M4 9l8-5 8 5"/><line x1="6" y1="9" x2="6" y2="21"/><line x1="10" y1="9" x2="10" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="18" y1="9" x2="18" y2="21"/></svg>Cabinet</button>
+      <button id="open-budget" class="footer-btn" aria-label="View the budget">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="11" width="3" height="8"/><rect x="11" y="6" width="3" height="13"/><rect x="16" y="14" width="3" height="5"/></svg>Budget</button>
+      <button id="open-overton" class="footer-btn" aria-label="View the Overton window">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.6 8.4l-2.1 5.1-5.1 2.1 2.1-5.1z"/></svg>Overton</button>
     </div>
     <button id="end-round" aria-label="End the current round">End Round →</button>
-    <div class="footer-actions">
-      <button id="restart-game" class="footer-btn danger" aria-label="Restart the game">↺ Restart</button>
-    </div>
   </footer>
 
   <script type="module" src="/main.js"></script>

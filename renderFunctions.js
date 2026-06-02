@@ -49,6 +49,15 @@ function renderHeader(gs) {
   document.getElementById("stat-approval").textContent = `${approval}% Approval`;
   document.getElementById("stat-approval").className    = `stat-chip ${approvalClass}`;
   document.getElementById("stat-enacted").textContent  = `${gs.enactedPolicyIds.length} Policies`;
+
+  const treasuryEl = document.getElementById("stat-treasury");
+  if (treasuryEl) {
+    const t = Math.round(gs.treasury ?? 0);
+    const net = GameState.budgetReport(gs).net;
+    const sign = net >= 0 ? "+" : "";
+    treasuryEl.textContent = `${t >= 0 ? "" : "−"}${Math.abs(t)}M Treasury (${sign}${net}/rd)`;
+    treasuryEl.className = `stat-chip ${t >= 0 ? "approval-good" : "approval-bad"}`;
+  }
 }
 
 // ── Goal banner ───────────────────────────────────────────────────────────────────
@@ -188,10 +197,13 @@ function renderPolicyWheel(gs) {
       .append("textPath").attr("href", `#${pathId}`).attr("startOffset", "50%").style("text-anchor", "middle").text(cat.toUpperCase());
   });
 
-  // Hub
-  sectorLayer.append("circle").attr("cx", cx).attr("cy", cy).attr("r", hubR).attr("class", "wheel-hub");
-  sectorLayer.append("text").attr("x", cx).attr("y", cy - 2).attr("text-anchor", "middle").attr("class", "wheel-hub-count").text(gs.enactedPolicyIds.length);
-  sectorLayer.append("text").attr("x", cx).attr("y", cy + 14).attr("text-anchor", "middle").attr("class", "wheel-hub-label").text(gs.enactedPolicyIds.length === 1 ? "policy" : "policies");
+  // Hub — click to add a policy
+  const hub = sectorLayer.append("g").style("cursor", "pointer").on("click", () => openPolicyCatalog(GameState.gameState));
+  hub.append("circle").attr("cx", cx).attr("cy", cy).attr("r", hubR).attr("class", "wheel-hub");
+  hub.append("text").attr("x", cx).attr("y", cy - 4).attr("text-anchor", "middle").attr("class", "wheel-hub-count").text(gs.enactedPolicyIds.length);
+  hub.append("text").attr("x", cx).attr("y", cy + 12).attr("text-anchor", "middle").attr("class", "wheel-hub-label").text(gs.enactedPolicyIds.length === 1 ? "policy" : "policies");
+  hub.append("text").attr("x", cx).attr("y", cy + 25).attr("text-anchor", "middle").attr("class", "wheel-hub-add").text("+ add");
+  hub.append("title").text("Add a policy");
 
   // Nodes with per-policy icons
   spans.forEach(({ cat, a0, a1 }) => {
@@ -206,6 +218,13 @@ function renderPolicyWheel(gs) {
       g.on("mouseover", function () { d3.select(this).raise().attr("transform", `translate(${pos.x},${pos.y}) scale(1.18)`); highlightEffects(policy, true); focusByOwner(policy.id); })
        .on("mouseout", function () { d3.select(this).attr("transform", `translate(${pos.x},${pos.y})`); highlightEffects(policy, false); clearFocus(); })
        .on("click", () => showPolicyDetails(GameState.gameState, policy));
+      // Level pip for staged policies
+      const mx = GameState.maxLevel(policy);
+      if (mx > 1) {
+        const lvl = GameState.levelOf(gs, policy.id);
+        g.append("circle").attr("cx", nodeR * 0.78).attr("cy", -nodeR * 0.78).attr("r", 6.5).attr("class", "wheel-level-pip");
+        g.append("text").attr("x", nodeR * 0.78).attr("y", -nodeR * 0.78 + 3).attr("text-anchor", "middle").attr("class", "wheel-level-text").text(lvl);
+      }
       labelLayer.append("text").attr("class", "wheel-policy-label").attr("x", pos.x).attr("y", pos.y + nodeR + 11).attr("text-anchor", "middle").text(truncate(policy.name));
     });
   });
@@ -520,22 +539,23 @@ function effectTags(policy) {
 }
 function policyRowHtml(gs, policy) {
   const isEnacted = gs.enactedPolicyIds.includes(policy.id);
-  const cost = GameState.effectiveCost(gs, policy);
+  const staged = !!GameState.stagesOf(policy);
+  const cost = GameState.enactCapitalCost(gs, policy, 1);
   const canAfford = gs.capital >= cost;
   const c = catColor(policy.category);
-  const discounted = cost < policy.cost;
   const search = `${policy.name} ${policy.description} ${policy.category}`.toLowerCase();
+  const lvl = isEnacted && staged ? ` <span class="enacted-badge">Lvl ${GameState.levelOf(gs, policy.id)}/${GameState.maxLevel(policy)}</span>` : isEnacted ? ` <span class="enacted-badge">✓ enacted</span>` : "";
   return `<div class="cat-policy-row ${isEnacted ? "enacted" : ""}" data-search="${search}">
     <div class="cat-policy-icon" style="color:${c}">${iconSvg(iconNameFor(policy), { size: 26 })}</div>
     <div class="cat-policy-main">
-      <div class="cat-policy-name"><span class="policy-cat-badge" style="background:${c}">${policy.category}</span> ${policy.name}${isEnacted ? ` <span class="enacted-badge">✓ enacted</span>` : ""}</div>
+      <div class="cat-policy-name"><span class="policy-cat-badge" style="background:${c}">${policy.category}</span> ${policy.name}${lvl}</div>
       <div class="cat-policy-desc">${policy.description}</div>
       <div class="policy-effects">${effectTags(policy)}</div>
     </div>
     <div class="cat-policy-side">
-      <span class="policy-cost ${!canAfford && !isEnacted ? "cost-high" : ""}">${cost} cap${discounted ? ` <s>${policy.cost}</s>` : ""}</span>
-      ${isEnacted ? `<button class="btn-repeal" data-act="repeal" data-id="${policy.id}">Repeal</button>`
-                  : `<button class="btn-enact" data-act="enact" data-id="${policy.id}" ${!canAfford ? "disabled" : ""}>Enact</button>`}
+      <span class="policy-cost ${!canAfford && !isEnacted ? "cost-high" : ""}">${staged ? "from " : ""}${cost} cap</span>
+      ${isEnacted ? `<button class="btn-repeal" data-act="${staged ? "details" : "repeal"}" data-id="${policy.id}">${staged ? "Adjust" : "Repeal"}</button>`
+                  : `<button class="btn-enact" data-act="${staged ? "details" : "enact"}" data-id="${policy.id}" ${!canAfford ? "disabled" : ""}>${staged ? "Choose…" : "Enact"}</button>`}
       <button class="btn-details" data-act="details" data-id="${policy.id}">Details</button>
     </div>
   </div>`;
@@ -652,14 +672,100 @@ export function showRepealConfirm(gs, policy) {
     else Swal.fire({ icon: "error", title: "Insufficient Capital", text: `You need ${repealCost} capital to repeal a policy.` });
   });
 }
+const fiscalLabel = f => f === 0 ? "budget-neutral" : f > 0 ? `+${f}M/round revenue` : `${f}M/round cost`;
+function scaledTags(policy, scale) {
+  return policy.metricEffects.slice(0, 4).map(e => {
+    const v = Math.round(e.change * scale), sign = v >= 0 ? "+" : "";
+    return `<span class="eff-tag ${v >= 0 ? "pos" : "neg"}">${sign}${v} ${e.id}</span>`;
+  }).join(" ");
+}
 export function showPolicyDetails(gs, policy) {
-  const isEnacted = GameState.isEnacted(gs, policy.id), c = catColor(policy.category);
+  const c = catColor(policy.category);
+  const isEnacted = GameState.isEnacted(gs, policy.id);
+  const stages = GameState.stagesOf(policy);
+  const level = GameState.levelOf(gs, policy.id);
+  const headBadge = `<div class="modal-icon" style="color:${c}">${iconSvg(iconNameFor(policy), { size: 34, stroke: c })}</div>
+    <div style="display:inline-block;padding:2px 10px;border-radius:12px;background:${c};color:#fff;font-size:13px;margin-bottom:8px">${policy.category}</div>`;
+
+  if (stages) {
+    const cards = stages.map((st, i) => {
+      const lv = i + 1, active = isEnacted && level === lv;
+      const cost = active ? 0 : isEnacted ? GameState.LEVEL_CHANGE_COST : GameState.enactCapitalCost(gs, policy, lv);
+      const costTxt = active ? "● current" : isEnacted ? `${cost} cap to switch` : `${cost} cap`;
+      return `<button class="stage-card ${active ? "active" : ""}" data-level="${lv}" ${active ? "disabled" : ""}>
+        <div class="stage-head"><span class="stage-name">Lvl ${lv} · ${st.name}</span><span class="stage-fiscal ${st.fiscal >= 0 ? "good" : "bad"}">${fiscalLabel(st.fiscal)}</span></div>
+        <div class="stage-desc">${st.desc}</div>
+        <div class="stage-foot"><span class="policy-effects">${scaledTags(policy, st.effect)}</span><span class="stage-cost">${costTxt}</span></div>
+      </button>`;
+    }).join("");
+    Swal.fire({
+      title: policy.name, width: 660,
+      html: `${headBadge}<p style="color:#475569;margin:0 0 8px">${policy.description}</p>
+        <p style="font-size:12px;color:#94a3b8;margin:0 0 10px">${isEnacted ? `Currently at level ${level}. Adjusting a level costs ${GameState.LEVEL_CHANGE_COST} capital.` : "Choose how far to go — higher stages do more but cost more."} You have <strong>${gs.capital}</strong> capital.</p>
+        <div class="stage-list">${cards}</div>
+        ${isEnacted ? `<button id="stage-repeal" class="btn-repeal" style="margin-top:10px;width:100%">Repeal entirely (20 cap)</button>` : ""}`,
+      showConfirmButton: true, confirmButtonText: "Close", confirmButtonColor: "#64748b",
+      didOpen: () => {
+        const root = Swal.getHtmlContainer();
+        root.querySelectorAll(".stage-card").forEach(btn => btn.addEventListener("click", () => {
+          const lv = +btn.dataset.level;
+          Swal.close();
+          const ok = PolicyFunctions.setPolicyLevel(policy, lv);
+          if (!ok) Swal.fire({ icon: "error", title: "Insufficient Capital", text: "Not enough political capital for that change." });
+        }));
+        root.querySelector("#stage-repeal")?.addEventListener("click", () => { Swal.close(); showRepealConfirm(GameState.gameState, policy); });
+      },
+    });
+    return;
+  }
+
+  // Non-staged: simple enact / repeal
+  const fiscal = GameState.policyFiscal(policy, 1);
   Swal.fire({
-    title: policy.name,
-    html: `<div class="modal-icon" style="color:${c}">${iconSvg(iconNameFor(policy), { size: 34, stroke: c })}</div>
-      <div style="display:inline-block;padding:2px 10px;border-radius:12px;background:${c};color:#fff;font-size:13px;margin-bottom:12px">${policy.category}</div>${effectsHtml(policy)}${isEnacted ? `<p style="margin-top:12px;color:#10b981;font-weight:600">✓ Currently enacted</p>` : ""}`,
-    showCancelButton: true, confirmButtonText: isEnacted ? "Repeal (20)" : "Enact", confirmButtonColor: isEnacted ? "#dc2626" : c, cancelButtonText: "Close",
+    title: policy.name, width: 560,
+    html: `${headBadge}${effectsHtml(policy)}
+      <p style="margin-top:8px;font-size:13px"><strong>Budget impact:</strong> <span class="${fiscal >= 0 ? "good" : "bad"}">${fiscalLabel(fiscal)}</span></p>
+      ${isEnacted ? `<p style="margin-top:8px;color:#10b981;font-weight:600">✓ Currently enacted</p>` : ""}`,
+    showCancelButton: true,
+    confirmButtonText: isEnacted ? "Repeal (20)" : `Enact (${GameState.enactCapitalCost(gs, policy, 1)})`,
+    confirmButtonColor: isEnacted ? "#dc2626" : c, cancelButtonText: "Close",
   }).then(result => { if (!result.isConfirmed) return; isEnacted ? showRepealConfirm(gs, policy) : showEnactConfirm(gs, policy); });
+}
+
+// ── Budget modal ───────────────────────────────────────────────────────────────────
+export function openBudget(gs) {
+  const b = GameState.budgetReport(gs);
+  const income = [{ name: "Tax base (economy)", amount: b.baseRevenue }, ...b.items.filter(i => i.amount > 0)].sort((x, y) => y.amount - x.amount);
+  const spending = b.items.filter(i => i.amount < 0).sort((x, y) => x.amount - y.amount);
+  const li = i => `<li><span>${i.name}</span><span class="${i.amount >= 0 ? "good" : "bad"}">${i.amount >= 0 ? "+" : ""}${i.amount}M</span></li>`;
+  Swal.fire({
+    title: "National Budget", width: 640,
+    html: `<div class="budget-summary">
+        <span>Treasury: <strong class="${b.treasury >= 0 ? "good" : "bad"}">${b.treasury}M</strong></span>
+        <span>Balance / round: <strong class="${b.net >= 0 ? "good" : "bad"}">${b.net >= 0 ? "+" : ""}${b.net}M</strong></span>
+      </div>
+      <div id="budget-chart"></div>
+      <div class="budget-grid">
+        <div><h4 class="good">Income</h4><ul class="budget-list">${income.map(li).join("")}</ul></div>
+        <div><h4 class="bad">Spending</h4><ul class="budget-list">${spending.length ? spending.map(li).join("") : `<li><span style="color:#94a3b8">No major spending yet.</span></li>`}</ul></div>
+      </div>`,
+    confirmButtonText: "Close", confirmButtonColor: "#64748b",
+    didOpen: () => drawTreasury(gs.treasuryHistory || []),
+  });
+}
+function drawTreasury(hist) {
+  const el = document.getElementById("budget-chart");
+  if (!el || typeof d3 === "undefined" || !hist.length) return;
+  const W = 580, H = 110, padL = 40, padR = 14, padT = 12, padB = 18;
+  const data = hist.slice(-40);
+  const x = d3.scaleLinear().domain([0, Math.max(1, data.length - 1)]).range([padL, W - padR]);
+  const lo = Math.min(0, ...data), hi = Math.max(0, ...data);
+  const y = d3.scaleLinear().domain([lo, hi]).range([H - padB, padT]).nice();
+  const svg = d3.select(el).html("").append("svg").attr("width", W).attr("height", H).attr("class", "budget-svg");
+  if (lo <= 0 && hi >= 0) svg.append("line").attr("x1", padL).attr("x2", W - padR).attr("y1", y(0)).attr("y2", y(0)).attr("stroke", "#cbd5e1").attr("stroke-dasharray", "3 3");
+  svg.append("path").datum(data).attr("fill", "none").attr("stroke", "#3b82f6").attr("stroke-width", 2.5).attr("d", d3.line().x((_, i) => x(i)).y(d => y(d)).curve(d3.curveMonotoneX));
+  svg.append("text").attr("x", padL - 6).attr("y", y(hi) + 3).attr("text-anchor", "end").attr("font-size", 9).attr("fill", "#94a3b8").text(Math.round(hi) + "M");
+  svg.append("text").attr("x", padL - 6).attr("y", y(lo) + 3).attr("text-anchor", "end").attr("font-size", 9).attr("fill", "#94a3b8").text(Math.round(lo) + "M");
 }
 
 // ── Round / election storytelling ─────────────────────────────────────────────────────
@@ -722,6 +828,7 @@ export function showRoundReport(report, narrative) {
         <div><h4>State of the nation</h4>
           <p class="report-stat">Approval: <strong>${report.approvalAfter}%</strong> <span class="${swing >= 0 ? "good" : "bad"}">(${swingTxt})</span></p>
           <p class="report-stat">Capital: <strong>${report.capital}</strong></p>
+          ${report.treasury != null ? `<p class="report-stat">Treasury: <strong class="${report.treasury >= 0 ? "good" : "bad"}">${report.treasury}M</strong> <span class="${report.budgetNet >= 0 ? "good" : "bad"}">(${report.budgetNet >= 0 ? "+" : ""}${report.budgetNet}/rd)</span></p>` : ""}
           <p class="report-stat">Mandate progress: <strong>${report.goalProgress}%</strong></p>
         </div>
       </div>${report.goalNewlyAchieved ? `<div class="report-goal-done">🏆 Mandate achieved: ${report.goal}!</div>` : ""}`,
