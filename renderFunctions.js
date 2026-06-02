@@ -156,6 +156,21 @@ function layoutWedgeNodes(list, a0, a1, rInner, rOuter) {
 }
 const truncate = name => name.length > POLICY_LABEL_MAX_LENGTH ? `${name.slice(0, POLICY_LABEL_MAX_LENGTH - 1)}…` : name;
 
+// Trim a sector label to fit the arc length, appending "…" when clipped, so the
+// (centered) text keeps its first letters: IMMIGRATION → IMMIG… rather than IGRAT.
+let _labelCtx = null;
+function fitArcLabel(text, maxWidth) {
+  if (maxWidth <= 0) return "";
+  if (!_labelCtx) _labelCtx = document.createElement("canvas").getContext("2d");
+  _labelCtx.font = "700 10px 'Open Sans', system-ui, sans-serif";
+  const LS = 0.6; // ≈ .06em letter-spacing at 10px
+  const w = s => _labelCtx.measureText(s).width + Math.max(0, s.length - 1) * LS;
+  if (w(text) <= maxWidth) return text;
+  let s = text;
+  while (s.length > 1 && w(s + "…") > maxWidth) s = s.slice(0, -1);
+  return s + "…";
+}
+
 function renderPolicyWheel(gs) {
   const container = document.getElementById("svg-container");
   if (!container || typeof d3 === "undefined") return;
@@ -192,13 +207,13 @@ function renderPolicyWheel(gs) {
       .on("click", () => openCategoryBrowser(GameState.gameState, cat))
       .append("title").text(`${cat} — ${byCat[cat].length} enacted · click to browse`);
 
-    const mid = (a0 + a1) / 2, topHalf = Math.cos(mid) >= 0, lr = radius * 0.9, pathId = `wheel-label-${i}`;
+    const mid = (a0 + a1) / 2, topHalf = Math.cos(mid) >= 0, lr = radius * 0.9, pathId = `wheel-label-${i}`, pad = 0.04;
     defs.append("path").attr("id", pathId)
-      .attr("d", topHalf ? arcPathD(cx, cy, lr, a0 + 0.04, a1 - 0.04, 1) : arcPathD(cx, cy, lr, a1 - 0.04, a0 + 0.04, 0));
-    // Anchor the label at the start of the arc so a shrinking sector clips the END
-    // of the word (IMMIG…) rather than eating the first letters (IGRAT).
+      .attr("d", topHalf ? arcPathD(cx, cy, lr, a0 + pad, a1 - pad, 1) : arcPathD(cx, cy, lr, a1 - pad, a0 + pad, 0));
+    // Pre-truncate to the arc length (keeps first letters + adds "…"), then centre it.
+    const label = fitArcLabel(cat.toUpperCase(), Math.max(0, a1 - a0 - 2 * pad) * lr * 0.96);
     labelLayer.append("text").attr("class", "wheel-sector-label").attr("dy", topHalf ? "0.9em" : "-0.35em").style("fill", color)
-      .append("textPath").attr("href", `#${pathId}`).attr("startOffset", "4%").style("text-anchor", "start").text(cat.toUpperCase());
+      .append("textPath").attr("href", `#${pathId}`).attr("startOffset", "50%").style("text-anchor", "middle").text(label);
   });
 
   // Hub — click to add a policy
