@@ -37,6 +37,9 @@
     </div>
   </header>
 
+  <!-- ── Goal / mandate banner ──────────────────────────────────────────── -->
+  <div id="goal-banner" aria-label="Government mandate"></div>
+
   <!-- ── Main ───────────────────────────────────────────────────────────── -->
   <main id="game-main">
 
@@ -46,26 +49,19 @@
       <div class="panel-body" id="metrics-list" aria-live="polite"></div>
     </aside>
 
-    <!-- Centre: Policy browser -->
-    <section id="policy-browser" aria-label="Policy browser">
-      <div id="svg-container" aria-label="Policy impact map"></div>
-      <div class="browser-header">
-        <div class="browser-title-row">
-          <span class="browser-title">Policy Catalogue</span>
-          <input type="search" id="policy-search" placeholder="Search policies…" aria-label="Search policies">
-        </div>
-        <div id="policy-count" aria-live="polite" class="policy-count">0 policies</div>
-        <div id="category-tabs" role="tablist" aria-label="Policy categories"></div>
+    <!-- Centre: Policy wheel -->
+    <section id="policy-wheel-section" aria-label="Policy wheel">
+      <div class="wheel-toolbar">
+        <span class="wheel-hint">Click a sector to browse &amp; enact its policies · click a node for details</span>
+        <button id="browse-all" class="wheel-btn" aria-label="Browse and add policies">+ Add Policy</button>
       </div>
-      <div id="policy-grid" role="list" aria-label="Policy cards"></div>
+      <div id="svg-container" aria-label="Policy category wheel"></div>
     </section>
 
-    <!-- Right: Voter approval + enacted policies -->
-    <aside id="social-panel" class="panel" aria-label="Voter approval and enacted policies">
+    <!-- Right: Voter approval -->
+    <aside id="social-panel" class="panel" aria-label="Public approval by voter group">
       <div class="panel-header">Public Approval</div>
       <div class="panel-body" id="voter-list" aria-live="polite"></div>
-      <div class="sub-panel-header">Active Policies</div>
-      <div class="panel-body" id="enacted-list" style="max-height:35%;border-top:none;" aria-live="polite"></div>
     </aside>
 
   </main>
