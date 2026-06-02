@@ -507,6 +507,16 @@ export const MINISTERS = [
   m("f_okoro","Sam Okoro","foreignCivic", 0, 0, 7,0.08,1.05,[["workers",4],["ruralResidents",4]]),
 ];
 
+// The technocratic cabinet you inherit on taking office (one per portfolio).
+export const DEFAULT_CABINET = {
+  treasury: "t_anand",
+  healthWelfare: "h_ford",
+  educationTech: "e_pierce",
+  environmentEnergy: "v_lin",
+  justiceInterior: "j_cho",
+  foreignCivic: "f_okoro",
+};
+
 // ── Speeches ───────────────────────────────────────────────────────────────────────
 // Each speech leans in a compass direction and rallies certain groups. Reward scales
 // with approval and how mainstream the message is; targeted groups get a mood bump.
@@ -644,9 +654,10 @@ export const SIM = {
   ELECTION_THRESHOLD: 50,      // min approval to be re-elected
   POP_SIZE: 10000,             // simulated individual voters
 
-  CAPITAL_BASE_INCOME: 55,     // political capital granted each round
-  CAPITAL_BELOVED_FACTOR: 1.4, // extra capital per approval point above 50
-  APPOINT_COST: 35,            // cost to appoint a minister
+  CAPITAL_BASE_INCOME: 6,      // small flat political capital each quarter
+  CAPITAL_BELOVED_FACTOR: 0.5, // extra capital per approval point above 50 (was 1.4)
+  MINISTER_INCOME_SCALE: 0.8,  // weight of minister-generated capital
+  DISMISS_COST: 25,            // capital to dismiss/replace a minister (appointing is free)
   LEVEL_CHANGE_COST: 8,        // capital to adjust an enacted policy's level
 
   TREASURY_START: 160,         // starting cash reserve (money, not capital)

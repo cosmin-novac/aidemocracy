@@ -41,10 +41,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // ── End Round ─────────────────────────────────────────────────────────────────
+  // ── End Quarter ───────────────────────────────────────────────────────────────
   endRoundBtn.addEventListener("click", async () => {
     const gs = GameState.gameState;
     if (gs.gameOver) return;
+
+    // You cannot govern with empty chairs — every portfolio must be filled.
+    if (!GameState.cabinetComplete(gs)) {
+      Swal.fire({
+        icon: "warning", title: "Cabinet incomplete",
+        text: `Name a minister for every portfolio before ending the quarter (vacant: ${GameState.vacantPortfolios(gs).join(", ")}).`,
+        confirmButtonText: "Open Cabinet", confirmButtonColor: "#3b82f6",
+      }).then(() => RenderFunctions.showCabinet(gs));
+      return;
+    }
     endRoundBtn.disabled = true;
 
     const report = GameState.endRound(gs);

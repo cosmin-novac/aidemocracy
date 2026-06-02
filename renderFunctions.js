@@ -468,37 +468,43 @@ export function showCabinet(gs) {
     const seatedId = gs.cabinet[port.id];
     const cands = MINISTERS.filter(m => m.portfolio === port.id);
     const loyalty = Math.round(gs.loyalty[port.id] ?? 0);
+    const filled = !!seatedId;
+    const cost = GameState.DISMISS_COST;
     const candHtml = cands.map(m => {
       const seated = seatedId === m.id;
       const biasTxt = m.approvalBias.map(([t, d]) => `${d > 0 ? "+" : ""}${d} ${groupName(t)}`).join(", ");
-      return `<div class="minister-card ${seated ? "seated" : ""}">
+      // Appoint into a vacant seat = free; replacing a sitting minister costs the dismissal fee.
+      const action = seated
+        ? `<button class="btn-repeal" data-act="dismiss" data-port="${port.id}" ${gs.capital < cost ? "disabled" : ""}>Dismiss (${cost})</button>`
+        : `<button class="btn-enact" data-act="appoint" data-port="${port.id}" data-min="${m.id}" ${filled && gs.capital < cost ? "disabled" : ""}>${filled ? `Replace (${cost})` : "Appoint (free)"}</button>`;
+      return `<div class="minister-card ${seated ? "seated" : ""} ${!filled ? "vacant" : ""}">
         <div class="minister-main">
           <div class="minister-name">${m.name}${seated ? ` <span class="seated-badge">in office · loyalty ${loyalty}%</span>` : ""}</div>
           <div class="minister-perks">+${m.capitalPerRound} capital/qtr · −${Math.round(m.costReduction * 100)}% ${port.name} cost · ×${m.effectiveness.toFixed(2)} effect</div>
           <div class="minister-bias">${biasTxt}</div>
         </div>
-        <div class="minister-act">
-          ${seated ? `<button class="btn-repeal" data-act="dismiss" data-port="${port.id}">Dismiss</button>`
-                   : `<button class="btn-enact" data-act="appoint" data-port="${port.id}" data-min="${m.id}" ${gs.capital < SIM.APPOINT_COST ? "disabled" : ""}>Appoint (${SIM.APPOINT_COST})</button>`}
-        </div>
+        <div class="minister-act">${action}</div>
       </div>`;
     }).join("");
-    return `<div class="portfolio-block"><h4 class="portfolio-title">${port.name} <span>${port.categories.join(" · ")}</span></h4>${candHtml}</div>`;
+    return `<div class="portfolio-block"><h4 class="portfolio-title">${port.name} <span>${port.categories.join(" · ")}</span>${filled ? "" : ` <span class="vacant-tag">VACANT — name a minister</span>`}</h4>${candHtml}</div>`;
   }).join("");
 
   Swal.fire({
     title: "Cabinet", width: 720,
-    html: `<p style="color:#64748b;margin:0 0 10px">Ministers generate political capital, boost and discount their portfolio's policies, and sway the groups they champion — but a minister whose loyalty collapses will resign. You have <strong>${gs.capital}</strong> capital.</p>
+    html: `<p style="color:#64748b;margin:0 0 10px">Ministers raise political capital (scaled by how happy their constituents are), boost and discount their portfolio's policies, and sway the groups they champion — but one whose loyalty collapses will resign, leaving a seat you must refill. <strong>Appointing is free; dismissing or replacing costs ${GameState.DISMISS_COST} capital.</strong> You have <strong>${gs.capital}</strong> capital.</p>
       <div class="cabinet-list">${portsHtml}</div>`,
     confirmButtonText: "Close", confirmButtonColor: "#64748b",
     didOpen: () => {
       Swal.getHtmlContainer().addEventListener("click", e => {
         const btn = e.target.closest("button[data-act]"); if (!btn) return;
         const port = btn.dataset.port;
-        if (btn.dataset.act === "appoint") GameState.appointMinister(GameState.gameState, port, btn.dataset.min);
-        else GameState.dismissMinister(GameState.gameState, port);
+        const res = btn.dataset.act === "appoint"
+          ? GameState.appointMinister(GameState.gameState, port, btn.dataset.min)
+          : GameState.dismissMinister(GameState.gameState, port);
         renderGameState(GameState.gameState);
-        Swal.close(); showCabinet(GameState.gameState);
+        Swal.close();
+        if (res && res.ok === false) Swal.fire({ icon: "error", title: "Not enough capital", text: `You need ${GameState.DISMISS_COST} political capital for that.`, confirmButtonColor: "#64748b" }).then(() => showCabinet(GameState.gameState));
+        else showCabinet(GameState.gameState);
       });
     },
   });

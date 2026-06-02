@@ -735,6 +735,8 @@ body.swal2-shown #impact-overlay { display: none; }
 .portfolio-title span { font-weight: 500; color: var(--text-muted); font-size: 11px; }
 .minister-card { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; }
 .minister-card.seated { border-color: var(--good); background: #f0fdf4; }
+.minister-card.vacant { border-color: #fca5a5; }
+.vacant-tag { font-size: 10px; font-weight: 800; color: #b91c1c; background: #fee2e2; border: 1px solid #fca5a5; padding: 1px 7px; border-radius: 10px; letter-spacing: .04em; }
 .minister-main { min-width: 0; }
 .minister-name { font-weight: 700; font-size: 13px; }
 .seated-badge { font-size: 11px; font-weight: 600; color: #15803d; }

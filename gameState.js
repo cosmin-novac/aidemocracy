@@ -11,7 +11,7 @@
 import { METRICS, POLICIES } from './policies.js';
 import {
   INDICATOR_INERTIA, DEFAULT_INERTIA, INDICATOR_LINKS, EVENTS, GOALS, SIM,
-  VOTER_PROFILES, TRAIT_PREVALENCE, PORTFOLIOS, MINISTERS, SPEECH_THEMES, POLICY_STAGES,
+  VOTER_PROFILES, TRAIT_PREVALENCE, PORTFOLIOS, MINISTERS, SPEECH_THEMES, POLICY_STAGES, DEFAULT_CABINET,
 } from './gameData.js';
 import * as Pop from './population.js';
 import * as Store from './persistence.js';
@@ -23,6 +23,7 @@ const TRAIT_IDS = Object.keys(TRAIT_PREVALENCE);
 const HISTORY_CAP = 48;
 export const TERM_LENGTH = SIM.TERM_LENGTH;
 export const LEVEL_CHANGE_COST = SIM.LEVEL_CHANGE_COST;
+export const DISMISS_COST = SIM.DISMISS_COST;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 export function clamp(value, min = 0, max = 200) {
@@ -404,8 +405,13 @@ function applyBudget(gs) {
 function buildInitialState(seed = Pop.randomSeed()) {
   const goal = GOALS[Math.floor(Math.random() * GOALS.length)];
   const start = goal.start || {};
-  const cabinet = {};
-  for (const p of PORTFOLIOS) cabinet[p.id] = null;
+  // You inherit a full technocratic cabinet.
+  const cabinet = {}; const loyalty = {};
+  for (const p of PORTFOLIOS) {
+    const mid = DEFAULT_CABINET[p.id] || null;
+    cabinet[p.id] = mid;
+    if (mid) loyalty[p.id] = SIM.LOYALTY_BASE;
+  }
 
   const metrics = METRICS.map(m => {
     const v = (start.indicators && start.indicators[m.id] != null) ? start.indicators[m.id] : m.value;
@@ -424,7 +430,7 @@ function buildInitialState(seed = Pop.randomSeed()) {
     treasury: SIM.TREASURY_START, treasuryHistory: [SIM.TREASURY_START],
     currentRound: 1, term: 1, seed, metrics, enactedPolicyIds, enactedLevels,
     pendingEnacted: [], pendingSpeeches: [],
-    gov: { econ: 0, soc: 0 }, mood: 0, cabinet, loyalty: {}, hasSpoken: false, discontent: 0,
+    gov: { econ: 0, soc: 0 }, mood: 0, cabinet, loyalty, hasSpoken: false, discontent: 0,
     activeEvents: (start.events || []).map(id => ({ id })),  // inherited ongoing situations
     goalId: goal.id, goalAchieved: false, gameOver: false, lastEventId: null, lastReport: null,
   };
@@ -479,11 +485,16 @@ export function giveSpeech(gs, themeId) {
   return { ok: true, gain, align, theme };
 }
 
+/** Appointing into a vacant seat is free; replacing a sitting minister pays the dismissal fee. */
 export function appointMinister(gs, portfolioId, ministerId) {
   const min = MINISTER_BY_ID.get(ministerId);
   if (!min || min.portfolio !== portfolioId) return { ok: false, reason: "invalid" };
-  if (gs.capital < SIM.APPOINT_COST) return { ok: false, reason: "capital" };
-  gs.capital -= SIM.APPOINT_COST;
+  const current = gs.cabinet[portfolioId];
+  if (current === ministerId) return { ok: true };
+  if (current) { // replacing someone → pay to dismiss them first
+    if (gs.capital < SIM.DISMISS_COST) return { ok: false, reason: "capital" };
+    gs.capital -= SIM.DISMISS_COST;
+  }
   gs.cabinet[portfolioId] = ministerId;
   gs.loyalty[portfolioId] = SIM.LOYALTY_BASE;
   recomputeElectorate(gs);
@@ -491,11 +502,18 @@ export function appointMinister(gs, portfolioId, ministerId) {
   return { ok: true };
 }
 export function dismissMinister(gs, portfolioId) {
+  if (!gs.cabinet[portfolioId]) return { ok: true };
+  if (gs.capital < SIM.DISMISS_COST) return { ok: false, reason: "capital" };
+  gs.capital -= SIM.DISMISS_COST;
   gs.cabinet[portfolioId] = null;
   delete gs.loyalty[portfolioId];
   recomputeElectorate(gs);
   persist(gs);
+  return { ok: true };
 }
+/** Every portfolio filled? (You cannot end a quarter with a vacant seat.) */
+export function cabinetComplete(gs) { return PORTFOLIOS.every(p => gs.cabinet[p.id]); }
+export function vacantPortfolios(gs) { return PORTFOLIOS.filter(p => !gs.cabinet[p.id]).map(p => p.name); }
 
 // ── State mutations ───────────────────────────────────────────────────────────────
 function afterPolicyChange(gs) {
@@ -534,11 +552,16 @@ export function endRound(gs) {
   gs.currentRound += 1;
   gs.hasSpoken = false;
 
-  // Income: base + beloved bonus + minister upkeep
+  // Income: small base + a modest "beloved" bonus + capital each minister raises,
+  // scaled by how happy that minister's own constituents are.
+  const ga = getElectorate(gs).groupApproval;
   let income = SIM.CAPITAL_BASE_INCOME + Math.max(0, before.approval - 50) * SIM.CAPITAL_BELOVED_FACTOR;
   for (const port of PORTFOLIOS) {
     const min = gs.cabinet[port.id] ? MINISTER_BY_ID.get(gs.cabinet[port.id]) : null;
-    if (min) income += min.capitalPerRound;
+    if (!min) continue;
+    const cons = min.approvalBias.filter(([, d]) => d > 0).map(([t]) => t);
+    const appr = cons.length ? cons.reduce((s, t) => s + (ga[t] ?? 50), 0) / cons.length : before.approval;
+    income += min.capitalPerRound * Math.max(0.2, Math.min(1.6, appr / 50)) * SIM.MINISTER_INCOME_SCALE;
   }
   gs.capital += Math.round(income);
 
