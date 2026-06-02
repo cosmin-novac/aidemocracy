@@ -201,13 +201,13 @@ function renderPolicyWheel(gs) {
     layoutWedgeNodes(byCat[cat], a0, a1, hubR, radius).forEach(({ policy, a, r, rows }) => {
       const pos = polar(cx, cy, r, a);
       const nodeR = Math.max(8, Math.min(16, (radius - hubR) / (rows * 2.6)));
-      const g = nodeLayer.append("g").attr("transform", `translate(${pos.x},${pos.y})`).style("cursor", "pointer");
+      const g = nodeLayer.append("g").attr("transform", `translate(${pos.x},${pos.y})`).attr("data-policy-id", policy.id).classed("wheel-node-g", true).style("cursor", "pointer");
       g.append("circle").datum(policy).attr("r", nodeR).attr("class", "wheel-policy-node").attr("data-policy-id", policy.id).style("fill", catColor(cat));
       const s = nodeR * 1.7;
       g.append("image").attr("href", iconDataUri(iconNameFor(policy), { stroke: "#ffffff" }))
         .attr("x", -s / 2).attr("y", -s / 2).attr("width", s).attr("height", s).style("pointer-events", "none");
-      g.on("mouseover", function () { d3.select(this).attr("transform", `translate(${pos.x},${pos.y}) scale(1.18)`); highlightEffects(policy, true); focusPolicyLinks(policy.id); })
-       .on("mouseout", function () { d3.select(this).attr("transform", `translate(${pos.x},${pos.y})`); highlightEffects(policy, false); clearLinkFocus(); })
+      g.on("mouseover", function () { d3.select(this).raise().attr("transform", `translate(${pos.x},${pos.y}) scale(1.18)`); highlightEffects(policy, true); focusByOwner(policy.id); })
+       .on("mouseout", function () { d3.select(this).attr("transform", `translate(${pos.x},${pos.y})`); highlightEffects(policy, false); clearFocus(); })
        .on("click", () => showPolicyDetails(GameState.gameState, policy));
       labelLayer.append("text").attr("class", "wheel-policy-label").attr("x", pos.x).attr("y", pos.y + nodeR + 11).attr("text-anchor", "middle").text(truncate(policy.name));
     });
@@ -224,11 +224,13 @@ function renderPolicyWheel(gs) {
       const pos = polar(cx, cy, radius * 0.82, ang);
       const good = a.def.tone === "good";
       const color = good ? "#15803d" : "#b45309";
-      const g = eventLayer.append("g").attr("transform", `translate(${pos.x},${pos.y})`).style("cursor", "pointer");
-      g.append("circle").attr("r", 11).attr("class", `wheel-event-marker ${good ? "good" : "bad"} ${a.until ? "shock" : "ongoing"}`);
+      const g = eventLayer.append("g").attr("transform", `translate(${pos.x},${pos.y})`).attr("data-event-id", a.id).classed("wheel-event-g", true).style("cursor", "pointer");
+      g.append("circle").attr("r", 11).attr("data-event-id", a.id).attr("class", `wheel-event-marker ${good ? "good" : "bad"} ${a.until ? "shock" : "ongoing"}`);
       g.append("image").attr("href", iconDataUri(good ? "sparkles" : "alert", { stroke: color, sw: 2.2 }))
         .attr("x", -8).attr("y", -8).attr("width", 16).attr("height", 16).style("pointer-events", "none");
-      g.on("click", () => showEventDetail(a.def));
+      g.on("mouseover", function () { d3.select(this).raise(); focusByOwner(a.id); })
+       .on("mouseout", clearFocus)
+       .on("click", () => showEventDetail(a.def));
       g.append("title").text(`${a.def.title} — click for detail`);
     });
   });
@@ -264,6 +266,9 @@ function rowAnchor(rowEl, bodyEl, side) {
   if (cyRow < b.top + 2 || cyRow > b.bottom - 2) return null;
   return { x: side === "right" ? r.right - 4 : r.left + 4, y: cyRow };
 }
+// Flow speed scales with the effect's magnitude: bigger impact → faster flow.
+function durFor(mag) { return Math.max(1.4, Math.min(7, 7 - Math.abs(mag) * 0.3)); }
+
 function renderImpactOverlay(gs) {
   const overlay = ensureOverlay();
   while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
@@ -273,37 +278,55 @@ function renderImpactOverlay(gs) {
   const metricsBody = document.getElementById("metrics-list"), voterBody = document.getElementById("voter-list");
   if (!container) return;
   const svgNS = "http://www.w3.org/2000/svg";
-  const addLine = (x1, y1, x2, y2, positive, pid) => {
+  const addLine = (x1, y1, x2, y2, { positive = true, owner, target, mag = 5, cause = false }) => {
     const line = document.createElementNS(svgNS, "line");
     line.setAttribute("x1", x1); line.setAttribute("y1", y1); line.setAttribute("x2", x2); line.setAttribute("y2", y2);
-    line.setAttribute("class", `impact-link ${positive ? "pos" : "neg"}`); line.dataset.policyId = pid;
+    line.setAttribute("class", `impact-link ${cause ? "cause" : positive ? "pos" : "neg"}`);
+    if (owner) line.dataset.owner = owner;
+    if (target) line.dataset.target = target;
+    line.style.animationDuration = durFor(mag) + "s";
     overlay.appendChild(line);
   };
+  const center = sel => { const n = container.querySelector(sel); if (!n) return null; const b = n.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; };
+  const metricAnchor = id => rowAnchor(document.querySelector(`#metrics-list .metric-card[data-metric-id="${id}"]`), metricsBody, "right");
+  const voterAnchor  = id => rowAnchor(document.querySelector(`#voter-list .voter-row[data-voter-id="${id}"]`), voterBody, "left");
+
+  // Policy → indicators (left) & voter groups (right)
   for (const pid of gs.enactedPolicyIds) {
-    const policy = POLICY_BY_ID.get(pid);
-    if (!policy) continue;
-    const node = container.querySelector(`circle.wheel-policy-node[data-policy-id="${pid}"]`);
-    if (!node) continue;
-    const nb = node.getBoundingClientRect();
-    const nx = nb.left + nb.width / 2, ny = nb.top + nb.height / 2;
-    for (const eff of policy.metricEffects) {
-      const a = rowAnchor(document.querySelector(`#metrics-list .metric-card[data-metric-id="${eff.id}"]`), metricsBody, "right");
-      if (a) addLine(a.x, a.y, nx, ny, eff.change >= 0, pid);
-    }
-    for (const eff of policy.voterEffects) {
-      const a = rowAnchor(document.querySelector(`#voter-list .voter-row[data-voter-id="${eff.id}"]`), voterBody, "left");
-      if (a) addLine(nx, ny, a.x, a.y, eff.change >= 0, pid);
-    }
+    const policy = POLICY_BY_ID.get(pid); if (!policy) continue;
+    const c = center(`circle.wheel-policy-node[data-policy-id="${pid}"]`); if (!c) continue;
+    for (const eff of policy.metricEffects) { const a = metricAnchor(eff.id); if (a) addLine(a.x, a.y, c.x, c.y, { positive: eff.change >= 0, owner: pid, target: eff.id, mag: eff.change }); }
+    for (const eff of policy.voterEffects) { const a = voterAnchor(eff.id); if (a) addLine(c.x, c.y, a.x, a.y, { positive: eff.change >= 0, owner: pid, target: eff.id, mag: eff.change }); }
+  }
+  // Events: incoming "cause" (the indicator that triggered it) + outgoing impacts
+  for (const a of GameState.getActiveEvents(gs)) {
+    const c = center(`circle.wheel-event-marker[data-event-id="${a.id}"]`); if (!c) continue;
+    const def = a.def;
+    if (def.cond) { const anc = metricAnchor(def.cond.id); if (anc) addLine(anc.x, anc.y, c.x, c.y, { owner: a.id, target: def.cond.id, cause: true, mag: 6 }); }
+    for (const p of (def.pressure || def.indicators || [])) { const anc = metricAnchor(p.id); if (anc) addLine(c.x, c.y, anc.x, anc.y, { positive: p.delta >= 0, owner: a.id, target: p.id, mag: p.delta }); }
   }
 }
-function focusPolicyLinks(pid) {
-  const o = document.getElementById("impact-overlay"); if (!o) return;
+function markLines(pred) {
+  const o = document.getElementById("impact-overlay"); if (!o) return new Set();
   o.classList.add("focusing");
-  o.querySelectorAll("line").forEach(l => l.classList.toggle("focused", l.dataset.policyId === pid));
+  const owners = new Set();
+  o.querySelectorAll("line").forEach(l => { const m = pred(l); l.classList.toggle("focused", m); if (m && l.dataset.owner) owners.add(l.dataset.owner); });
+  return owners;
 }
-function clearLinkFocus() {
-  const o = document.getElementById("impact-overlay"); if (!o) return;
-  o.classList.remove("focusing"); o.querySelectorAll("line.focused").forEach(l => l.classList.remove("focused"));
+function dimWheelExcept(ids) {
+  const svg = document.querySelector("#svg-container svg"); if (!svg) return;
+  svg.querySelectorAll(".wheel-node-g, .wheel-event-g").forEach(g => {
+    const id = g.getAttribute("data-policy-id") || g.getAttribute("data-event-id");
+    g.style.opacity = ids.has(id) ? "1" : "0.22";
+  });
+}
+function focusByOwner(id) { markLines(l => l.dataset.owner === id); dimWheelExcept(new Set([id])); }
+function focusByTarget(id) { dimWheelExcept(markLines(l => l.dataset.target === id)); }
+function clearFocus() {
+  const o = document.getElementById("impact-overlay");
+  if (o) { o.classList.remove("focusing"); o.querySelectorAll("line.focused").forEach(l => l.classList.remove("focused")); }
+  const svg = document.querySelector("#svg-container svg");
+  if (svg) svg.querySelectorAll(".wheel-node-g, .wheel-event-g").forEach(g => { g.style.opacity = ""; });
 }
 function scheduleOverlay() {
   if (overlayFrame !== null) return;
@@ -737,7 +760,16 @@ export function setupPolicyEvents() {
     if (row?.dataset.voterId) showGroupDetail(GameState.gameState, row.dataset.voterId);
   });
   document.getElementById("goal-banner")?.addEventListener("click", () => showMandateDetail(GameState.gameState));
-  document.getElementById("metrics-list")?.addEventListener("scroll", scheduleOverlay, { passive: true });
-  document.getElementById("voter-list")?.addEventListener("scroll", scheduleOverlay, { passive: true });
+
+  // Hovering an indicator or a voter group highlights every connection touching it.
+  const metricsList = document.getElementById("metrics-list");
+  const voterList = document.getElementById("voter-list");
+  metricsList?.addEventListener("mouseover", e => { const c = e.target.closest(".metric-card"); if (c?.dataset.metricId) focusByTarget(c.dataset.metricId); });
+  metricsList?.addEventListener("mouseleave", clearFocus);
+  voterList?.addEventListener("mouseover", e => { const r = e.target.closest(".voter-row"); if (r?.dataset.voterId) focusByTarget(r.dataset.voterId); });
+  voterList?.addEventListener("mouseleave", clearFocus);
+
+  metricsList?.addEventListener("scroll", scheduleOverlay, { passive: true });
+  voterList?.addEventListener("scroll", scheduleOverlay, { passive: true });
   window.addEventListener("resize", scheduleOverlay, { passive: true });
 }

@@ -631,25 +631,30 @@ body {
 /* Don't let the impact lines bleed through an open dialog's backdrop */
 body.swal2-shown #impact-overlay { display: none; }
 
+/* Static dashed lines by default (cheap). Only the hovered policy's links
+   animate — so the flow animation never runs on 100+ lines at once. */
 .impact-link {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-dasharray: 7 6;
-  opacity: 0.34;
-  animation: flowAnimationForwards 9s linear infinite;
+  opacity: 0.3;
 }
 
-.impact-link.pos { stroke: var(--good); }
-.impact-link.neg { stroke: var(--bad); }
+.impact-link.pos   { stroke: var(--good); }
+.impact-link.neg   { stroke: var(--bad); }
+.impact-link.cause { stroke: #94a3b8; stroke-dasharray: 2 5; opacity: 0.22; }
 
 #impact-overlay.focusing .impact-link { opacity: 0.05; }
 #impact-overlay.focusing .impact-link.focused {
   opacity: 0.95;
   stroke-width: 3;
-  animation-duration: 4s;
+  /* duration is set per-line (value-based); only declare the rest here */
+  animation-name: flowAnimationForwards;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
 
-@media (prefers-reduced-motion: reduce) { .impact-link { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .impact-link.focused { animation: none; } }
 
 /* ── Round report / election modals ─────────────────────────────────────────── */
 .report-narrative {

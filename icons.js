@@ -154,7 +154,7 @@ export function iconBody(name) { return ICONS[name] || ""; }
 /** Wrap a named glyph in an <svg> element. `stroke` defaults to currentColor. */
 export function iconSvg(name, { size = 20, cls = "", stroke = "currentColor", sw = 1.9 } = {}) {
   const body = ICONS[name] || ICONS.coins;
-  return `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
     stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"
     aria-hidden="true">${body}</svg>`;
 }
