@@ -1,5 +1,7 @@
 # AI Democracy
 
+### ▶️ [Play it now: aidemocracy.netlify.app](https://aidemocracy.netlify.app/)
+
 AI Democracy is a policy simulation game inspired by the concept of Democracy 4. It allows you to explore the dynamics of policy-making and their impact on various aspects of society. Developed using innovative techniques, this game combines human input with the power of GPT-4, an advanced language model, to create a unique and interactive gaming experience.
 
 ## Innovation with GPT-4
