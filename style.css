@@ -161,11 +161,15 @@ body {
 .panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 12px;
+  padding: 10px 12px;
+  /* Spread the groups/rows down the full height so the lists breathe and reach the footer. */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 /* ── Metrics panel (compact, single-line rows) ─────────────────────────────── */
-.metric-group { margin-bottom: 6px; }
+.metric-group { margin-bottom: 0; }
 
 .metric-group-title {
   font-size: 10px;
@@ -620,21 +624,22 @@ body {
 /* Don't let the impact lines bleed through an open dialog's backdrop */
 body.swal2-shown #impact-overlay { display: none; }
 
-/* Static dashed lines by default (cheap). Only the hovered policy's links
-   animate — so the flow animation never runs on 100+ lines at once. */
+/* Connections are hidden until you hover something. Hovering a sector reveals its
+   links faintly (.show); hovering a node/indicator/group animates a subset (.focused).
+   Nothing animates unless focused, so the flow never runs on 100+ lines at once. */
 .impact-link {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-dasharray: 7 6;
-  opacity: 0.3;
+  opacity: 0;
 }
 
 .impact-link.pos   { stroke: var(--good); }
 .impact-link.neg   { stroke: var(--bad); }
-.impact-link.cause { stroke: #94a3b8; stroke-dasharray: 2 5; opacity: 0.22; }
+.impact-link.cause { stroke: #94a3b8; stroke-dasharray: 2 5; }
 
-#impact-overlay.focusing .impact-link { opacity: 0.05; }
-#impact-overlay.focusing .impact-link.focused {
+.impact-link.show    { opacity: 0.32; }
+.impact-link.focused {
   opacity: 0.95;
   stroke-width: 3;
   /* duration is set per-line (value-based); only declare the rest here */

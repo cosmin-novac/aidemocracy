@@ -44,7 +44,7 @@ export function renderGameState(gs) {
 function renderHeader(gs) {
   const approval = GameState.overallApproval(gs);
   const approvalClass = approval >= 60 ? "approval-good" : approval >= 40 ? "approval-ok" : "approval-bad";
-  document.getElementById("stat-round").textContent    = `Round ${gs.currentRound}`;
+  document.getElementById("stat-round").textContent    = `Quarter ${gs.currentRound}`;
   document.getElementById("stat-capital").textContent  = `${gs.capital} Political Capital`;
   document.getElementById("stat-approval").textContent = `${approval}% Approval`;
   document.getElementById("stat-approval").className    = `stat-chip ${approvalClass}`;
@@ -55,7 +55,7 @@ function renderHeader(gs) {
     const t = Math.round(gs.treasury ?? 0);
     const net = GameState.budgetReport(gs).net;
     const sign = net >= 0 ? "+" : "";
-    treasuryEl.textContent = `${t >= 0 ? "" : "−"}${Math.abs(t)}M Treasury (${sign}${net}/rd)`;
+    treasuryEl.textContent = `${t >= 0 ? "" : "−"}${Math.abs(t)}M Treasury (${sign}${net}/qtr)`;
     treasuryEl.className = `stat-chip ${t >= 0 ? "approval-good" : "approval-bad"}`;
   }
 }
@@ -68,7 +68,8 @@ function renderGoalBanner(gs) {
   if (!goal) { el.innerHTML = ""; return; }
   const pct = Math.round(progress * 100);
   const termLen = GameState.TERM_LENGTH;
-  const inTerm = ((gs.currentRound - 1) % termLen) + 1;
+  const inTerm = ((gs.currentRound - 1) % termLen) + 1;     // 1..16 quarters
+  const year = Math.ceil(inTerm / 4), q = ((inTerm - 1) % 4) + 1;
   el.innerHTML = `
     <div class="goal-left">
       <span class="goal-flag">MANDATE</span>
@@ -81,7 +82,7 @@ function renderGoalBanner(gs) {
         <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${pct}%"></div></div>
         <span class="goal-progress-pct">${pct}%</span>
       </div>
-      <span class="goal-term">Term ${gs.term} · Year ${inTerm}/${termLen}</span>
+      <span class="goal-term">Term ${gs.term} · Year ${year}/4 · Q${q}</span>
     </div>`;
 }
 
@@ -185,8 +186,8 @@ function renderPolicyWheel(gs) {
     sectorLayer.append("path").attr("d", arcGen()).attr("transform", `translate(${cx},${cy})`)
       .attr("class", "wheel-sector").style("fill", color).style("fill-opacity", byCat[cat].length ? 0.16 : 0.09)
       .style("stroke", color).style("stroke-opacity", 0.45)
-      .on("mouseover", function () { d3.select(this).style("fill-opacity", 0.26); })
-      .on("mouseout", function () { d3.select(this).style("fill-opacity", byCat[cat].length ? 0.16 : 0.09); })
+      .on("mouseover", function () { d3.select(this).style("fill-opacity", 0.26); showSector(cat); })
+      .on("mouseout", function () { d3.select(this).style("fill-opacity", byCat[cat].length ? 0.16 : 0.09); clearFocus(); })
       .on("click", () => openCategoryBrowser(GameState.gameState, cat))
       .append("title").text(`${cat} — ${byCat[cat].length} enacted · click to browse`);
 
@@ -262,8 +263,8 @@ export function showEventDetail(def) {
     html: `<div class="modal-icon" style="color:${color}">${iconSvg(good ? "sparkles" : "alert", { size: 34, stroke: color })}</div>
       <p style="color:#64748b">${def.desc || ""}</p>
       <p style="font-size:13px;color:#475569">${def.kind === "ongoing"
-        ? "An ongoing situation — it keeps pressuring the nation each round until the underlying indicator recovers past its danger threshold."
-        : "A one-off shock to the nation this round."}</p>
+        ? "An ongoing situation — it keeps pressuring the nation each quarter until the underlying indicator recovers past its danger threshold."
+        : "A one-off shock to the nation this quarter."}</p>
       ${eff ? `<div class="policy-effects" style="justify-content:center;margin-top:8px">${eff}</div>` : ""}`,
     confirmButtonText: "Close", confirmButtonColor: "#64748b",
   });
@@ -294,12 +295,13 @@ function renderImpactOverlay(gs) {
   const metricsBody = document.getElementById("metrics-list"), voterBody = document.getElementById("voter-list");
   if (!container) return;
   const svgNS = "http://www.w3.org/2000/svg";
-  const addLine = (x1, y1, x2, y2, { positive = true, owner, target, mag = 5, cause = false }) => {
+  const addLine = (x1, y1, x2, y2, { positive = true, owner, target, sector, mag = 5, cause = false }) => {
     const line = document.createElementNS(svgNS, "line");
     line.setAttribute("x1", x1); line.setAttribute("y1", y1); line.setAttribute("x2", x2); line.setAttribute("y2", y2);
     line.setAttribute("class", `impact-link ${cause ? "cause" : positive ? "pos" : "neg"}`);
     if (owner) line.dataset.owner = owner;
     if (target) line.dataset.target = target;
+    if (sector) line.dataset.sector = sector;
     line.style.animationDuration = durFor(mag) + "s";
     overlay.appendChild(line);
   };
@@ -311,22 +313,28 @@ function renderImpactOverlay(gs) {
   for (const pid of gs.enactedPolicyIds) {
     const policy = POLICY_BY_ID.get(pid); if (!policy) continue;
     const c = center(`circle.wheel-policy-node[data-policy-id="${pid}"]`); if (!c) continue;
-    for (const eff of policy.metricEffects) { const a = metricAnchor(eff.id); if (a) addLine(a.x, a.y, c.x, c.y, { positive: eff.change >= 0, owner: pid, target: eff.id, mag: eff.change }); }
-    for (const eff of policy.voterEffects) { const a = voterAnchor(eff.id); if (a) addLine(c.x, c.y, a.x, a.y, { positive: eff.change >= 0, owner: pid, target: eff.id, mag: eff.change }); }
+    for (const eff of policy.metricEffects) { const a = metricAnchor(eff.id); if (a) addLine(a.x, a.y, c.x, c.y, { positive: eff.change >= 0, owner: pid, target: eff.id, sector: policy.category, mag: eff.change }); }
+    for (const eff of policy.voterEffects) { const a = voterAnchor(eff.id); if (a) addLine(c.x, c.y, a.x, a.y, { positive: eff.change >= 0, owner: pid, target: eff.id, sector: policy.category, mag: eff.change }); }
   }
   // Events: incoming "cause" (the indicator that triggered it) + outgoing impacts
   for (const a of GameState.getActiveEvents(gs)) {
     const c = center(`circle.wheel-event-marker[data-event-id="${a.id}"]`); if (!c) continue;
     const def = a.def;
-    if (def.cond) { const anc = metricAnchor(def.cond.id); if (anc) addLine(anc.x, anc.y, c.x, c.y, { owner: a.id, target: def.cond.id, cause: true, mag: 6 }); }
-    for (const p of (def.pressure || def.indicators || [])) { const anc = metricAnchor(p.id); if (anc) addLine(c.x, c.y, anc.x, anc.y, { positive: p.delta >= 0, owner: a.id, target: p.id, mag: p.delta }); }
+    if (def.cond) { const anc = metricAnchor(def.cond.id); if (anc) addLine(anc.x, anc.y, c.x, c.y, { owner: a.id, target: def.cond.id, sector: def.category, cause: true, mag: 6 }); }
+    for (const p of (def.pressure || def.indicators || [])) { const anc = metricAnchor(p.id); if (anc) addLine(c.x, c.y, anc.x, anc.y, { positive: p.delta >= 0, owner: a.id, target: p.id, sector: def.category, mag: p.delta }); }
   }
 }
-function markLines(pred) {
+// Connections are hidden until you hover something. Hovering a SECTOR reveals its
+// links faintly (.show); hovering a node / indicator / group focuses a subset (.focused).
+function clearLines() {
+  const o = document.getElementById("impact-overlay");
+  o?.querySelectorAll("line").forEach(l => l.classList.remove("show", "focused"));
+}
+function markLines(cls, pred) {
   const o = document.getElementById("impact-overlay"); if (!o) return new Set();
-  o.classList.add("focusing");
+  clearLines();
   const owners = new Set();
-  o.querySelectorAll("line").forEach(l => { const m = pred(l); l.classList.toggle("focused", m); if (m && l.dataset.owner) owners.add(l.dataset.owner); });
+  o.querySelectorAll("line").forEach(l => { if (pred(l)) { l.classList.add(cls); if (l.dataset.owner) owners.add(l.dataset.owner); } });
   return owners;
 }
 function dimWheelExcept(ids) {
@@ -336,11 +344,11 @@ function dimWheelExcept(ids) {
     g.style.opacity = ids.has(id) ? "1" : "0.22";
   });
 }
-function focusByOwner(id) { markLines(l => l.dataset.owner === id); dimWheelExcept(new Set([id])); }
-function focusByTarget(id) { dimWheelExcept(markLines(l => l.dataset.target === id)); }
+function showSector(cat) { markLines("show", l => l.dataset.sector === cat); }
+function focusByOwner(id) { markLines("focused", l => l.dataset.owner === id); dimWheelExcept(new Set([id])); }
+function focusByTarget(id) { dimWheelExcept(markLines("focused", l => l.dataset.target === id)); }
 function clearFocus() {
-  const o = document.getElementById("impact-overlay");
-  if (o) { o.classList.remove("focusing"); o.querySelectorAll("line.focused").forEach(l => l.classList.remove("focused")); }
+  clearLines();
   const svg = document.querySelector("#svg-container svg");
   if (svg) svg.querySelectorAll(".wheel-node-g, .wheel-event-g").forEach(g => { g.style.opacity = ""; });
 }
@@ -466,7 +474,7 @@ export function showCabinet(gs) {
       return `<div class="minister-card ${seated ? "seated" : ""}">
         <div class="minister-main">
           <div class="minister-name">${m.name}${seated ? ` <span class="seated-badge">in office · loyalty ${loyalty}%</span>` : ""}</div>
-          <div class="minister-perks">+${m.capitalPerRound} capital/round · −${Math.round(m.costReduction * 100)}% ${port.name} cost · ×${m.effectiveness.toFixed(2)} effect</div>
+          <div class="minister-perks">+${m.capitalPerRound} capital/qtr · −${Math.round(m.costReduction * 100)}% ${port.name} cost · ×${m.effectiveness.toFixed(2)} effect</div>
           <div class="minister-bias">${biasTxt}</div>
         </div>
         <div class="minister-act">
@@ -499,7 +507,7 @@ export function showCabinet(gs) {
 // ── Speech modal ─────────────────────────────────────────────────────────────────────
 export function showSpeechMenu(gs) {
   if (gs.hasSpoken) {
-    Swal.fire({ icon: "info", title: "Already spoke", text: "You can give one speech per round. End the round to speak again.", confirmButtonColor: "#64748b" });
+    Swal.fire({ icon: "info", title: "Already spoke", text: "You can give one speech per quarter. End the quarter to speak again.", confirmButtonColor: "#64748b" });
     return;
   }
   const approval = GameState.overallApproval(gs);
@@ -531,11 +539,19 @@ export function showSpeechMenu(gs) {
 }
 
 // ── Policy browser ─────────────────────────────────────────────────────────────────────
-function effectTags(policy) {
-  return policy.metricEffects.slice(0, 3).map(e => {
-    const sign = e.change >= 0 ? "+" : "";
-    return `<span class="eff-tag ${e.change >= 0 ? "pos" : "neg"}">${sign}${e.change} ${e.id}</span>`;
-  }).join(" ");
+// Label for a metric or voter id (falls back to the id).
+function labelFor(id) { return METRIC_META.get(id)?.name || GROUP_META.get(id)?.name || id; }
+// An effect chip: shows WHAT is affected + direction; the magnitude is only revealed
+// once the policy is enacted (keeps un-enacted policies intriguing).
+function effectTagHtml(id, change, magnitude) {
+  const m = METRIC_META.get(id);
+  const up = change >= 0;
+  const good = m ? (m.lowerIsBetter ? !up : up) : up;  // voters: up = good
+  const num = magnitude ? ` ${up ? "+" : ""}${change}` : "";
+  return `<span class="eff-tag ${good ? "pos" : "neg"}">${labelFor(id)} ${up ? "▲" : "▼"}${num}</span>`;
+}
+function effectTags(policy, magnitude = false) {
+  return policy.metricEffects.slice(0, 3).map(e => effectTagHtml(e.id, e.change, magnitude)).join(" ");
 }
 function policyRowHtml(gs, policy) {
   const isEnacted = gs.enactedPolicyIds.includes(policy.id);
@@ -550,7 +566,7 @@ function policyRowHtml(gs, policy) {
     <div class="cat-policy-main">
       <div class="cat-policy-name"><span class="policy-cat-badge" style="background:${c}">${policy.category}</span> ${policy.name}${lvl}</div>
       <div class="cat-policy-desc">${policy.description}</div>
-      <div class="policy-effects">${effectTags(policy)}</div>
+      <div class="policy-effects">${effectTags(policy, isEnacted)}</div>
     </div>
     <div class="cat-policy-side">
       <span class="policy-cost ${!canAfford && !isEnacted ? "cost-high" : ""}">${staged ? "from " : ""}${cost} cap</span>
@@ -636,20 +652,26 @@ function drawCurve(history, future, target) {
 }
 
 // ── Policy detail / confirm modals ───────────────────────────────────────────────────
-function effectsHtml(policy) {
-  const row = e => { const sign = e.change >= 0 ? "+" : ""; return `<tr><td>${e.id}</td><td class="${e.change >= 0 ? "good" : "bad"}">${sign}${e.change}</td></tr>`; };
-  return `<p style="color:#64748b;margin:0 0 12px">${policy.description}</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:left">
-      <div><strong>Indicator pressure</strong><table class="effect-table"><tbody>${policy.metricEffects.map(row).join("")}</tbody></table></div>
+function effectsHtml(policy, magnitude = false) {
+  const row = e => {
+    const m = METRIC_META.get(e.id);
+    const up = e.change >= 0;
+    const good = m ? (m.lowerIsBetter ? !up : up) : up;
+    const val = magnitude ? `${up ? "+" : ""}${e.change}` : (up ? "▲" : "▼");
+    return `<tr><td>${labelFor(e.id)}</td><td class="${good ? "good" : "bad"}">${val}</td></tr>`;
+  };
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:left">
+      <div><strong>Affects</strong><table class="effect-table"><tbody>${policy.metricEffects.map(row).join("")}</tbody></table></div>
       <div><strong>Voter sentiment</strong><table class="effect-table"><tbody>${policy.voterEffects.map(row).join("")}</tbody></table></div>
     </div>
-    <p style="font-size:12px;color:#94a3b8;margin:10px 0 0">Effects build up gradually over several rounds.</p>`;
+    <p style="font-size:12px;color:#94a3b8;margin:10px 0 0">${magnitude ? "Effects build up gradually over several quarters." : "Enact it to discover how strong each effect really is."}</p>`;
 }
 export function showEnactConfirm(gs, policy) {
   const c = catColor(policy.category), cost = GameState.effectiveCost(gs, policy);
   Swal.fire({
     title: policy.name,
     html: `<div class="modal-icon" style="color:${c}">${iconSvg(iconNameFor(policy), { size: 34, stroke: c })}</div>
+      <p style="color:#475569;margin:0 0 12px">${policy.description}</p>
       ${effectsHtml(policy)}<p style="margin-top:14px;font-weight:600">Cost: <span style="color:${c}">${cost} political capital</span> &nbsp;·&nbsp; You have: ${gs.capital}</p>`,
     showCancelButton: true, confirmButtonText: "Enact Policy", cancelButtonText: "Cancel", confirmButtonColor: c,
   }).then(result => {
@@ -672,11 +694,11 @@ export function showRepealConfirm(gs, policy) {
     else Swal.fire({ icon: "error", title: "Insufficient Capital", text: `You need ${repealCost} capital to repeal a policy.` });
   });
 }
-const fiscalLabel = f => f === 0 ? "budget-neutral" : f > 0 ? `+${f}M/round revenue` : `${f}M/round cost`;
-function scaledTags(policy, scale) {
+const fiscalLabel = f => f === 0 ? "budget-neutral" : f > 0 ? `+${f}M/quarter revenue` : `${f}M/quarter cost`;
+function scaledTags(policy, scale, magnitude) {
   return policy.metricEffects.slice(0, 4).map(e => {
-    const v = Math.round(e.change * scale), sign = v >= 0 ? "+" : "";
-    return `<span class="eff-tag ${v >= 0 ? "pos" : "neg"}">${sign}${v} ${e.id}</span>`;
+    const v = magnitude ? Math.round(e.change * scale) : e.change;
+    return effectTagHtml(e.id, v, magnitude);
   }).join(" ");
 }
 export function showPolicyDetails(gs, policy) {
@@ -695,7 +717,7 @@ export function showPolicyDetails(gs, policy) {
       return `<button class="stage-card ${active ? "active" : ""}" data-level="${lv}" ${active ? "disabled" : ""}>
         <div class="stage-head"><span class="stage-name">Lvl ${lv} · ${st.name}</span><span class="stage-fiscal ${st.fiscal >= 0 ? "good" : "bad"}">${fiscalLabel(st.fiscal)}</span></div>
         <div class="stage-desc">${st.desc}</div>
-        <div class="stage-foot"><span class="policy-effects">${scaledTags(policy, st.effect)}</span><span class="stage-cost">${costTxt}</span></div>
+        <div class="stage-foot"><span class="policy-effects">${scaledTags(policy, st.effect, isEnacted)}</span><span class="stage-cost">${costTxt}</span></div>
       </button>`;
     }).join("");
     Swal.fire({
@@ -723,7 +745,7 @@ export function showPolicyDetails(gs, policy) {
   const fiscal = GameState.policyFiscal(policy, 1);
   Swal.fire({
     title: policy.name, width: 560,
-    html: `${headBadge}${effectsHtml(policy)}
+    html: `${headBadge}<p style="color:#475569;margin:0 0 12px">${policy.description}</p>${effectsHtml(policy, isEnacted)}
       <p style="margin-top:8px;font-size:13px"><strong>Budget impact:</strong> <span class="${fiscal >= 0 ? "good" : "bad"}">${fiscalLabel(fiscal)}</span></p>
       ${isEnacted ? `<p style="margin-top:8px;color:#10b981;font-weight:600">✓ Currently enacted</p>` : ""}`,
     showCancelButton: true,
@@ -742,7 +764,7 @@ export function openBudget(gs) {
     title: "National Budget", width: 640,
     html: `<div class="budget-summary">
         <span>Treasury: <strong class="${b.treasury >= 0 ? "good" : "bad"}">${b.treasury}M</strong></span>
-        <span>Balance / round: <strong class="${b.net >= 0 ? "good" : "bad"}">${b.net >= 0 ? "+" : ""}${b.net}M</strong></span>
+        <span>Balance / quarter: <strong class="${b.net >= 0 ? "good" : "bad"}">${b.net >= 0 ? "+" : ""}${b.net}M</strong></span>
       </div>
       <div id="budget-chart"></div>
       <div class="budget-grid">
@@ -787,7 +809,7 @@ export function showMandateBriefing(gs) {
       <p style="color:#475569">${goal.description}</p>
       <div style="text-align:left;margin:12px auto;max-width:420px"><strong>Targets to hit:</strong>
       <ul class="mandate-targets">${targetList}</ul>
-      <p style="font-size:13px;color:#64748b">You inherit a government already in motion — policies are in force and the indicators reflect the situation. You govern in <strong>${GameState.TERM_LENGTH}-round terms</strong>; hold <strong>≥ ${requireApproval}% approval</strong> at each election to stay in power.</p></div>`,
+      <p style="font-size:13px;color:#64748b">You inherit a government already in motion — policies are in force and the indicators reflect the situation. A term is <strong>16 quarters (4 years)</strong>; hold <strong>≥ ${requireApproval}% approval</strong> at the election to stay in power.</p></div>`,
     confirmButtonText: "Take office", confirmButtonColor: "#3b82f6",
   });
 }
@@ -821,14 +843,14 @@ export function showRoundReport(report, narrative) {
   const speechHtml = report.speeches && report.speeches.length ? `<p class="report-stat" style="text-align:center">🎤 Speeches: ${report.speeches.join(", ")}</p>` : "";
   const moversHtml = report.movers.length ? `<ul class="report-movers">${report.movers.map(moverLine).join("")}</ul>` : `<p style="color:#94a3b8;font-size:13px">The indicators barely budged.</p>`;
   return Swal.fire({
-    title: `Round ${report.round - 1} → ${report.round}`, width: 620,
+    title: `Quarter ${report.round - 1} → ${report.round}`, width: 620,
     html: `<div class="report-narrative">${narrative}</div>${eventsHtml}${speechHtml}
       <div class="report-grid">
         <div><h4>Notable shifts</h4>${moversHtml}</div>
         <div><h4>State of the nation</h4>
           <p class="report-stat">Approval: <strong>${report.approvalAfter}%</strong> <span class="${swing >= 0 ? "good" : "bad"}">(${swingTxt})</span></p>
           <p class="report-stat">Capital: <strong>${report.capital}</strong></p>
-          ${report.treasury != null ? `<p class="report-stat">Treasury: <strong class="${report.treasury >= 0 ? "good" : "bad"}">${report.treasury}M</strong> <span class="${report.budgetNet >= 0 ? "good" : "bad"}">(${report.budgetNet >= 0 ? "+" : ""}${report.budgetNet}/rd)</span></p>` : ""}
+          ${report.treasury != null ? `<p class="report-stat">Treasury: <strong class="${report.treasury >= 0 ? "good" : "bad"}">${report.treasury}M</strong> <span class="${report.budgetNet >= 0 ? "good" : "bad"}">(${report.budgetNet >= 0 ? "+" : ""}${report.budgetNet}/qtr)</span></p>` : ""}
           <p class="report-stat">Mandate progress: <strong>${report.goalProgress}%</strong></p>
         </div>
       </div>${report.goalNewlyAchieved ? `<div class="report-goal-done">🏆 Mandate achieved: ${report.goal}!</div>` : ""}`,

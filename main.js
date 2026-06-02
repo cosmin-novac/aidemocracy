@@ -53,12 +53,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Only show a "tallying" spinner if an LLM call is actually going to happen;
     // the deterministic fallback is instant, so skip it otherwise.
     if (GameState.getApiKey()) {
-      Swal.fire({ title: "Tallying the round…", html: "The press is filing its reports.", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      Swal.fire({ title: "Tallying the quarter…", html: "The press is filing its reports.", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     }
     let text;
     try { ({ text } = await Narrator.narrateRound(report)); }
     catch { text = ""; }
-    await RenderFunctions.showRoundReport(report, text || "The round passed.");
+    await RenderFunctions.showRoundReport(report, text || "The quarter passed.");
 
     if (report.election) await RenderFunctions.showElectionResult(report.election, GameState.getGoal(gs)?.title);
     endRoundBtn.disabled = !!GameState.gameState.gameOver;
@@ -129,7 +129,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           <li><strong>Effects build gradually</strong> along a curve — click an indicator (left) to see its trajectory.</li>
           <li><strong>Approval</strong> (right) is the average of the citizens in each group; click a group to see why they back or oppose you, and where they sit on the political compass.</li>
           <li><strong>Political capital</strong> funds policies. Earn it by being beloved, giving <em>speeches</em>, and appointing good <em>ministers</em>.</li>
-          <li><strong>Elections</strong> come every ${GameState.TERM_LENGTH} rounds: hold ≥50% approval to stay in power.</li>
+          <li><strong>Treasury & deficit</strong>: policies also cost or raise money each quarter — watch the Budget so debt doesn't spiral.</li>
+          <li><strong>Levels</strong>: many policies can be set to bolder stages for more impact at a higher price.</li>
+          <li><strong>Elections</strong> come every ${GameState.TERM_LENGTH} quarters (4 years): hold ≥50% approval to stay in power.</li>
         </ul></div>`,
       confirmButtonText: "Got it",
     });

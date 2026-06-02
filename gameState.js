@@ -278,8 +278,25 @@ function processEvents(gs) {
   if (condShocks.length) { const e = weightedPick(condShocks); fireShock(gs, e); fired.push({ id: e.id, title: e.title, seed: e.seed }); gs.lastEventId = e.id; }
   // 3) Random shock
   if (Math.random() < SIM.EVENT_RANDOM_CHANCE) {
-    const rnd = EVENTS.filter(e => e.kind === "shock" && !e.cond && e.id !== gs.lastEventId && !hasActive(gs, e.id));
+    const rnd = EVENTS.filter(e => e.kind === "shock" && !e.cond && !e.unrest && e.id !== gs.lastEventId && !hasActive(gs, e.id));
     if (rnd.length) { const e = weightedPick(rnd); fireShock(gs, e); fired.push({ id: e.id, title: e.title, seed: e.seed }); gs.lastEventId = e.id; }
+  }
+  // 3b) Discontent: prolonged unhappiness breeds unrest (protests, riots, terror, kidnappings)
+  const appr = overallApproval(gs);
+  gs.discontent = appr < 42 ? (gs.discontent || 0) + 1 : Math.max(0, (gs.discontent || 0) - 1);
+  if (gs.discontent >= 3 && Math.random() < Math.min(0.6, 0.1 * gs.discontent)) {
+    const pool = EVENTS.filter(e => e.unrest && e.id !== gs.lastEventId && !hasActive(gs, e.id));
+    if (pool.length) {
+      const e = weightedPick(pool);
+      fireShock(gs, e);
+      if (e.kidnap) {
+        const seated = PORTFOLIOS.filter(p => gs.cabinet[p.id]);
+        if (seated.length) { const port = seated[Math.floor(Math.random() * seated.length)]; gs.loyalty[port.id] = (gs.loyalty[port.id] ?? SIM.LOYALTY_BASE) - 30; }
+      }
+      gs.discontent = Math.max(0, gs.discontent - 2);
+      gs.lastEventId = e.id;
+      fired.push({ id: e.id, title: e.title, seed: e.seed });
+    }
   }
   // 4) Ongoing mood drip
   for (const a of gs.activeEvents) { const e = EVENT_BY_ID.get(a.id); if (e && e.kind === "ongoing" && e.moodDrip) gs.mood += e.moodDrip; }
@@ -407,7 +424,7 @@ function buildInitialState(seed = Pop.randomSeed()) {
     treasury: SIM.TREASURY_START, treasuryHistory: [SIM.TREASURY_START],
     currentRound: 1, term: 1, seed, metrics, enactedPolicyIds, enactedLevels,
     pendingEnacted: [], pendingSpeeches: [],
-    gov: { econ: 0, soc: 0 }, mood: 0, cabinet, loyalty: {}, hasSpoken: false,
+    gov: { econ: 0, soc: 0 }, mood: 0, cabinet, loyalty: {}, hasSpoken: false, discontent: 0,
     activeEvents: (start.events || []).map(id => ({ id })),  // inherited ongoing situations
     goalId: goal.id, goalAchieved: false, gameOver: false, lastEventId: null, lastReport: null,
   };
@@ -567,7 +584,7 @@ function toRecord(gs) {
     currentRound: gs.currentRound, term: gs.term,
     metrics: gs.metrics.map(m => ({ id: m.id, value: m.value, target: m.target, history: m.history })),
     enactedPolicyIds: gs.enactedPolicyIds, enactedLevels: gs.enactedLevels, gov: gs.gov, mood: gs.mood,
-    cabinet: gs.cabinet, loyalty: gs.loyalty, hasSpoken: gs.hasSpoken,
+    cabinet: gs.cabinet, loyalty: gs.loyalty, hasSpoken: gs.hasSpoken, discontent: gs.discontent,
     activeEvents: gs.activeEvents,
     goalId: gs.goalId, goalAchieved: gs.goalAchieved, gameOver: gs.gameOver, lastEventId: gs.lastEventId,
   };
@@ -591,6 +608,7 @@ function fromRecord(rec) {
   for (const p of PORTFOLIOS) gs.cabinet[p.id] = (rec.cabinet && rec.cabinet[p.id]) || null;
   gs.loyalty = rec.loyalty || {};
   gs.activeEvents = rec.activeEvents || [];
+  gs.discontent = rec.discontent || 0;
   gs.hasSpoken = !!rec.hasSpoken;
   gs.goalId = rec.goalId || gs.goalId;
   gs.goalAchieved = !!rec.goalAchieved;

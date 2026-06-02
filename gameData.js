@@ -330,6 +330,27 @@ export const EVENTS = [
     indicators:[{id:"gdpGrowth",delta:4}], credits:15,
     desc:"A surge in exports delivers a treasury windfall.",
     seed:"A surge in high-value exports delivers an unexpected windfall to the treasury." },
+  // ── Unrest (only fire when the public has been disgruntled too long) ──
+  { id:"peacefulProtest", title:"Mass Protests", kind:"shock", tone:"bad", category:"Civic", weight:2, unrest:true,
+    indicators:[{id:"socialCohesion",delta:-3}], mood:-3,
+    desc:"Huge but peaceful crowds fill the streets demanding change.",
+    seed:"Hundreds of thousands march peacefully through the capital, demanding the government change course." },
+  { id:"violentRiots", title:"Violent Riots", kind:"shock", tone:"bad", category:"Justice", weight:2, unrest:true,
+    indicators:[{id:"crimeRate",delta:6},{id:"infrastructure",delta:-4}], mood:-5, credits:-10,
+    desc:"Anger boils over into rioting, looting, and clashes with police.",
+    seed:"Anger boils over: rioting and looting erupt across several cities, and the damage is severe." },
+  { id:"terrorAttack", title:"Terror Attack", kind:"shock", tone:"bad", category:"Justice", weight:1, unrest:true,
+    indicators:[{id:"civilLiberties",delta:-4},{id:"publicHealth",delta:-3},{id:"socialCohesion",delta:-4}], mood:-7, credits:-12,
+    desc:"A shocking attack spreads fear and hardens the public mood.",
+    seed:"A shocking terror attack leaves the nation reeling and clamouring for security." },
+  { id:"ministerKidnapping", title:"Minister Kidnapped", kind:"shock", tone:"bad", category:"Justice", weight:1, unrest:true, kidnap:true,
+    indicators:[{id:"civilLiberties",delta:-2}], mood:-5, credits:-15,
+    desc:"Militants seize a cabinet minister, throwing the government into crisis.",
+    seed:"Militants have kidnapped a senior cabinet minister, plunging the government into a security crisis." },
+  { id:"generalStrikeUnrest", title:"Wave of Strikes", kind:"shock", tone:"bad", category:"Labor", weight:2, unrest:true,
+    indicators:[{id:"gdpGrowth",delta:-5}], mood:-4,
+    desc:"Rolling strikes paralyse swathes of the economy.",
+    seed:"A wave of rolling strikes paralyses transport, schools, and services nationwide." },
 ];
 
 // ── Goals ─────────────────────────────────────────────────────────────────────

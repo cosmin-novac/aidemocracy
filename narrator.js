@@ -17,7 +17,7 @@ function moverPhrase(m) {
 /** Compact, model-friendly summary of the round. */
 function reportToFacts(report) {
   const lines = [];
-  lines.push(`Round ${report.round} (term ${report.term}).`);
+  lines.push(`Quarter ${report.round} (term ${report.term}).`);
   if (report.enacted.length) lines.push(`Newly enacted: ${report.enacted.join(", ")}.`);
   else lines.push(`No new policies were enacted this round.`);
   if (report.speeches && report.speeches.length) lines.push(`The leader gave speeches on: ${report.speeches.join(", ")}.`);
