@@ -4,9 +4,9 @@
 
 AI Democracy is a policy simulation game inspired by the concept of Democracy 4. It allows you to explore the dynamics of policy-making and their impact on various aspects of society. Developed using LLMs, this game combines human input with the power of GPT, an advanced language model, to create a unique and interactive gaming experience.
 
-## Innovation with GP
+## Innovation with GPT
 
-AI Democracy showcases an innovative approach to game development. The game's development process relied heavily on GPT, an advanced language model. By leveraging the model's capabilities, the game was created through collaborative interactions and negotiations with GPT-4, without ANY manual coding.
+AI Democracy showcases an innovative approach to game development. The game's development process relied heavily on GPT, an advanced language model. By leveraging the model's capabilities, the game was created through collaborative interactions and negotiations with GPT, without ANY manual coding.
 
 ![AI Democracy](/screenshot.png)
 
