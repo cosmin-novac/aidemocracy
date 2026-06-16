@@ -2,11 +2,11 @@
 
 ### ▶️ [Play it now: aidemocracy.netlify.app](https://aidemocracy.netlify.app/)
 
-AI Democracy is a policy simulation game inspired by the concept of Democracy 4. It allows you to explore the dynamics of policy-making and their impact on various aspects of society. Developed using innovative techniques, this game combines human input with the power of GPT-4, an advanced language model, to create a unique and interactive gaming experience.
+AI Democracy is a policy simulation game inspired by the concept of Democracy 4. It allows you to explore the dynamics of policy-making and their impact on various aspects of society. Developed using LLMs, this game combines human input with the power of GPT, an advanced language model, to create a unique and interactive gaming experience.
 
-## Innovation with GPT-4
+## Innovation with GP
 
-AI Democracy showcases an innovative approach to game development. The game's development process relied heavily on GPT-4, an advanced language model. By leveraging the model's capabilities, the game was created through collaborative interactions and negotiations with GPT-4, without ANY manual coding.
+AI Democracy showcases an innovative approach to game development. The game's development process relied heavily on GPT, an advanced language model. By leveraging the model's capabilities, the game was created through collaborative interactions and negotiations with GPT-4, without ANY manual coding.
 
 ![AI Democracy](/screenshot.png)
 
@@ -55,11 +55,6 @@ To progress through the game, you can end the current round by clicking the "End
 ### Credits and Rounds
 
 The number of available political credits and the current round are displayed alongside the buttons. The credits represent your resources for adding and deleting policies, while the round indicates your progress in the game.
-
-
-## Acknowledgments
-
-AI Democracy was developed by Cosmin Novac. We would like to express our gratitude to OpenAI for providing the powerful GPT-4 model that made this project possible.
 
 ## License
 
